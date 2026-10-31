@@ -27,7 +27,14 @@ impl Tracker {
         snapshot: &[ProcessIdentity],
         excluded: &[String],
     ) -> Result<Vec<InheritedProcess>, String> {
-        let key = |path: &str| config::normalize_process_path(path).to_lowercase();
+        let key = |path: &str| {
+            let normalized = config::normalize_process_path(path);
+            if let Some(unc) = normalized.strip_prefix(r"\\?\UNC\") {
+                format!(r"\\{unc}").to_lowercase()
+            } else {
+                normalized.trim_start_matches(r"\\?\").to_lowercase()
+            }
+        };
         let excluded: HashSet<String> = excluded.iter().map(|path| key(path)).collect();
         let selected: HashSet<String> = roots.iter().map(|root| key(&root.path)).collect();
         let enabled: HashMap<String, String> = roots

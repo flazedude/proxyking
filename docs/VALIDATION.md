@@ -1,5 +1,17 @@
 # Windows preview validation
 
+## Version 0.3.1 — launcher children
+
+Checked on Windows x64 on 2026-10-31:
+
+- Frontend: 174 tests passed; production TypeScript/Vite build passed.
+- Native: 20 tests passed and one self-spawn fixture was invoked by the routing tests. Strict Clippy passed.
+- The real-engine launcher test starts a child executable after engine startup, discovers it using Windows parent IDs and creation times, atomically updates the production child rule set, and verifies its request reaches the mock proxy. The engine PID stays the same. After child exit and rule removal, a subsequent request reaches the direct origin.
+- Hierarchy tests cover grandchildren, surviving launcher exit, excluding the engine, disabling expansion, and PID reuse. Old saved selections deserialize with child inclusion disabled.
+- Signed updater installer and portable executable built as 0.3.1. Native smoke check confirmed version, engine Ready, process-list loading, and new child-inclusion guidance. No profiles or process selections were changed during the smoke check.
+
+Routing tests use loopback and remove the TUN inbound before starting an engine. No Windows proxy, routing, DNS, or firewall settings were changed. Live game launchers, elevated TUN capture, and cleanup remain unverified. Child detection is asynchronous: initial connections can go direct, very short-lived intermediary launchers can be missed, and service-launched games may need explicit selection. Discovered rules match executable paths and therefore include every instance of those paths.
+
 ## Version 0.3.0 — GitHub updates and development handoff
 
 Checked on Windows x64 on 2026-10-31:

@@ -90,6 +90,13 @@ mod windows {
     }
 
     pub fn process_snapshot() -> Result<Vec<ProcessIdentity>, String> {
+        // Do not pair a recycled PID with the snapshot's previous parent.
+        let snapshot_started = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+            / 100
+            + 116444736000000000_u128;
         let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
         if snapshot == INVALID_HANDLE_VALUE {
             return Err("Windows could not read the list of running applications.".into());
@@ -125,11 +132,16 @@ mod windows {
                             .file_name()
                             .map(|name| name.to_string_lossy().into_owned())
                         {
+                            let creation_time = ((created.dwHighDateTime as u64) << 32)
+                                | created.dwLowDateTime as u64;
+                            if u128::from(creation_time) > snapshot_started {
+                                more = unsafe { Process32NextW(snapshot.0, &mut entry) } != 0;
+                                continue;
+                            }
                             result.push(ProcessIdentity {
                                 pid: entry.th32ProcessID,
                                 parent_pid: entry.th32ParentProcessID,
-                                created: ((created.dwHighDateTime as u64) << 32)
-                                    | created.dwLowDateTime as u64,
+                                created: creation_time,
                                 name,
                                 path: path_text,
                             });

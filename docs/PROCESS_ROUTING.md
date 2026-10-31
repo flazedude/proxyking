@@ -2,7 +2,17 @@
 
 ProxyKing can route selected Windows applications through a saved proxy server. Add the server manually or import a supported share link, open **Processes**, select applications from the running-process picker, and enable **Use selected processes** if another mode is active. This mode needs administrator access to create the virtual network adapter. Use **Restart as administrator**, approve Windows' UAC prompt yourself, then connect from Overview.
 
-The selection is an executable path, not a process ID. All instances of that executable match, including instances started later. An application's helper executables need their own selections when they make network connections. After changing the selection or connecting, restart the target app or make a new connection; existing connections are not migrated reliably.
+The selection is an executable path, not a process ID. All instances of that executable match, including instances started later. Enable **Include child processes** on a launcher such as Steam or Battle.net to discover its games and helpers automatically. New selections enable this by default; existing selections keep it off until you opt in. After changing the selection or connecting, restart the target app or make a new connection; existing connections are not migrated reliably.
+
+## Launcher child processes
+
+Child inclusion recursively follows Windows parent IDs and process creation times, including grandchildren. It detects existing descendants when connecting and samples for new children every 250 ms while connected. A discovered child remains included if its launcher exits, and can bring in its own children while it remains alive. Creation times prevent an unrelated process from inheriting a reused PID. Unknown or inaccessible processes remain direct.
+
+The **Automatically included children** panel lists discovered executable paths and their selected launcher. These are temporary path rules, not permanent additions to your saved selection. As with explicit selections, all instances of a discovered executable path match, including instances started independently. A child path is removed when its last tracked instance exits; all child rules are cleared on disconnect. Existing connections are not migrated or cut off by a rule change.
+
+This feature updates a local [sing-box rule set](https://sing-box.sagernet.org/configuration/rule-set/), which the engine reloads without restarting the tunnel. The runtime file contains executable-path patterns only; it contains no proxy credentials and is removed on ordinary cleanup. An interrupted app can leave a harmless unused rules file behind.
+
+Discovery and rule reloading are asynchronous and can take a few seconds. Initial connections can go direct. A very short-lived intermediate launcher can disappear between samples, and a game started by an independent Windows service is not necessarily a child of the visible launcher. Add those executables explicitly, or start the game before connecting so its readable ancestry is present at connection time. Child inclusion is a convenience feature, not strict per-process network isolation.
 
 ## Routing behavior
 

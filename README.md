@@ -44,7 +44,7 @@ Open [the local preview](http://127.0.0.1:1420). Browser preview profiles live o
 
 1. Choose **Add server** to enter an HTTP/HTTPS or SOCKS5 server address, port, and optional credentials. Alternatively, import provider share links (`ss://`, `vless://`, `trojan://`, `http://`, `https://`, or `socks5://` with an explicit port).
 2. Select the profile you want to use. **Test** measures TCP reachability only.
-3. Open **Processes → Add from process list**. Search by name, PID, or path and select the executables to tunnel. Rules apply to all instances, including later launches. Add separate helper executables if they make the app's network connections.
+3. Open **Processes → Add from process list**. Search by name, PID, or path and select the executables to tunnel. Rules apply to all instances, including later launches. Enable **Include child processes** for a launcher such as Steam or Battle.net to automatically discover its games and helpers, including grandchildren. Newly selected executables enable this by default; existing selections retain their previous behavior.
 4. Choose **Use selected processes** if another mode is active. Click **Restart as administrator**, approve Windows' prompt yourself, then press **Connect** in Overview. The app never connects automatically after restarting.
 5. Selected processes use the proxy; unmatched and unidentified processes go direct. Windows DNS is unchanged. Disconnect before editing servers, modes, or process rules.
 6. Press **Disconnect**, or close the app, to stop the engine. System-proxy mode restores settings still owned by ProxyKing.
@@ -58,6 +58,7 @@ Open [the local preview](http://127.0.0.1:1420). Browser preview profiles live o
 - Overview, searchable profile library, rename/delete, activity, and connection settings.
 - Manual HTTP/HTTPS and SOCKS5 servers with optional authentication.
 - Native running-process picker, saved executable-path rules, and selected-process TUN routing with direct fallback.
+- Recursive launcher child tracking with temporary rules updated while connected, and a visible list of automatically included child executables. Discovery is asynchronous; initial connections can go direct. Service-launched games and very short-lived intermediary launchers may need explicit selection.
 - Explicit administrator restart for Windows TUN access; no automatic elevation or connection.
 - Strict share-link parsing, percent/Base64 decoding, Unicode names, IPv6, and duplicate detection.
 - Shadowsocks SIP002/legacy and supported 2022 variants; VLESS/Trojan TLS and Reality; TCP, WebSocket, and standard gRPC.

@@ -133,6 +133,11 @@ mod tests {
         }
         assert_eq!(AppSettings::default().effective_routing_mode(), "processes");
         assert!(!AppSettings::default().system_proxy);
+        let legacy: SelectedProcess = serde_json::from_value(
+            serde_json::json!({"name":"steam.exe","path":"C:\\Apps\\steam.exe"}),
+        )
+        .unwrap();
+        assert!(!legacy.include_children);
     }
 }
 
