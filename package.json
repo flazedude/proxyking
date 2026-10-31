@@ -1,7 +1,7 @@
 {
   "name": "proxyking",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -16,7 +16,8 @@
     "desktop": "tauri dev",
     "desktop:build": "tauri build",
     "setup:engine": "node scripts/setup-engine.mjs",
-    "package:windows": "node scripts/package-windows.mjs"
+    "package:windows": "node scripts/package-windows.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.0",

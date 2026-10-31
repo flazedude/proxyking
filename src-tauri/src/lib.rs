@@ -7,13 +7,14 @@ mod proxy;
 mod routing_tests;
 mod runtime;
 mod storage;
+mod updates;
 mod usage;
 
 // Keep native core unit tests independent of the GUI runtime and its Windows
 // Common Controls activation manifest, which Tauri embeds only in app binaries.
 #[cfg(not(test))]
 mod application {
-    use super::{config, models, platform, runtime};
+    use super::{config, models, platform, runtime, updates};
     use models::{AppSettings, LogEntry, Profile, RunningProcess, RuntimeStatus, SavedState};
     use runtime::Service;
     use std::{
@@ -181,7 +182,10 @@ mod application {
                 get_logs,
                 clear_logs,
                 list_processes,
-                restart_elevated
+                restart_elevated,
+                updates::native::check_updates,
+                updates::native::download_update,
+                updates::native::install_update
             ])
             .build(tauri::generate_context!())
             .expect("Could not start ProxyKing");

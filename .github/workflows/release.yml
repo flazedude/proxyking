@@ -43,3 +43,12 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: -- --locked
+      - name: Prepare corresponding source and notices
+        run: npm run release:prepare
+      - name: Attach source and notices to the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $pkAssets = (Get-ChildItem release/assets -File).FullName
+          gh release upload $env:RELEASE_TAG @pkAssets

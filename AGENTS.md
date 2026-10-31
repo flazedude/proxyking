@@ -7,6 +7,7 @@
 - Fetch and inspect the current branch and working tree before editing. Preserve existing work. Do not force-push, rewrite shared history, or commit local credentials.
 - Use `codex/` branches for changes when branch isolation is useful; publish the branch and open a PR if merging is outside the current authorization.
 - Source pushes update GitHub. Installed applications update only from signed, published versioned GitHub Releases, never directly from branch contents.
+- For installed-app feature/fix iterations, finish the signed versioned GitHub release and this PC's LAN mirror as well as pushing source; do not stop at a source-only push unless the user requests development-only work. Reuse the HappyCheats LAN server's separate `/proxyking/` namespace on port 17845, preserving its task, configuration, firewall scope and HappyCheats files. ProxyKing retains its own signing key. Follow docs/UPDATES.md; report offline peers honestly.
 
 ## Setup on another Windows x64 computer
 

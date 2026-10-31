@@ -4,6 +4,8 @@ A Windows-first desktop client for your own **Shadowsocks, VLESS, Trojan, HTTP/H
 
 Source: [flazedude/proxyking](https://github.com/flazedude/proxyking). Download published installers from [GitHub Releases](https://github.com/flazedude/proxyking/releases). For development on another computer, start with [AGENTS.md](AGENTS.md).
 
+On the home LAN, download [ProxyKing setup from JACK-PC](http://192.168.2.76:17845/proxyking/ProxyKing-Setup.exe). GPD-PC uses the same `/proxyking/` path at `192.168.2.59:17845` once its shared server and mirror are set up. GitHub remains available when the LAN hosts are off.
+
 ## Open the Windows app
 
 Double-click `release/ProxyKing/ProxyKing.exe`, or the **ProxyKing** desktop shortcut when available. This is the real desktop app and does not need Node.js or a browser to run. Keep its `resources` folder alongside the executable. Add your server, choose processes, and connect as described below.
@@ -78,7 +80,7 @@ This is an early Windows x64 build. Selected-process mode uses a Windows TUN int
 
 Force-killing ProxyKing or restarting Windows prevents normal cleanup. Its engine is terminated with the app; launch ProxyKing again to recover the previous settings. If recovery fails, the app shows an error with **Retry cleanup**. If Internet access is unavailable before relaunch, check Windows **Settings → Network & internet → Proxy** for a stale `127.0.0.1` entry. ProxyKing preserves unrelated newer proxy changes.
 
-Version 0.3.0 adds automatic signed-update checks through GitHub Releases at startup and every six hours, a manual check button, and installation after explicit selection. Installation verifies the download, disconnects the proxy, and restarts the installed app. Older builds need one manual installation. See [updates and release instructions](docs/UPDATES.md).
+Version 0.3.2 checks both LAN hosts and GitHub Releases at startup and every six hours, with a manual check button. It selects the newest available version and prefers matching LAN downloads. Installation verifies the signature and signed version, disconnects the proxy, and restarts the installed app. Versions 0.3.0–0.3.1 receive this first update through GitHub; older builds need one manual installation. See [updates and release instructions](docs/UPDATES.md).
 
 Subscription URL fetching, QR scanning, traffic accounting, auto-connect, tray mode, and a kill switch are future features. No remote telemetry or account service is implemented.
 

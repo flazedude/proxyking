@@ -1,10 +1,11 @@
 [package]
 name = "proxyking"
-version = "0.3.1"
+version = "0.3.2"
 description = "ProxyKing — a personal proxy client"
 authors = ["ProxyKing"]
 edition = "2021"
 rust-version = "1.90"
+default-run = "proxyking"
 
 [lib]
 name = "proxyking_lib"
@@ -21,6 +22,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["net", "time"] }
 regex = "1"
+semver = "1"
+futures-util = "0.3"
+minisign-verify = "0.3"
+base64 = "0.22"
 reqwest = { version = "0.13", default-features = false, features = ["blocking"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 

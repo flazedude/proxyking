@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { installVerifiedUpdate } from "./updater";
+import { checkForUpdates, installVerifiedUpdate } from "./updater";
 
 describe("safe update installation", () => {
+  it("never checks update feeds in browser preview", async () => {
+    expect(await checkForUpdates()).toBeNull();
+  });
   it("verifies the download before disconnecting and disconnects before installing", async () => {
     const steps: string[] = [];
     await installVerifiedUpdate(

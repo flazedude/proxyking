@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { check, type Update } from "@tauri-apps/plugin-updater";
 import { ArrowDownToLine, Loader2, RefreshCw } from "lucide-react";
 import { isDesktop } from "../lib/backend";
-import { installVerifiedUpdate } from "../lib/updater";
+import {
+  checkForUpdates,
+  installVerifiedUpdate,
+  type AppUpdate,
+} from "../lib/updater";
 
 export function AppUpdater({
   disabled,
@@ -15,7 +18,7 @@ export function AppUpdater({
   disconnect: () => Promise<void>;
   onEnd: () => void;
 }) {
-  const pending = useRef<Update | null>(null);
+  const pending = useRef<AppUpdate | null>(null);
   const checking = useRef(false);
   const installing = useRef(false);
   const mounted = useRef(false);
@@ -29,9 +32,9 @@ export function AppUpdater({
     checking.current = true;
     setWorking(true);
     setError("");
-    setPhase("Checking GitHub for updates…");
+    setPhase("Checking LAN hosts and GitHub for updates…");
     try {
-      const update = await check({ timeout: 20000 });
+      const update = await checkForUpdates();
       if (!isAlive()) {
         await update?.close();
         return;
@@ -42,14 +45,12 @@ export function AppUpdater({
       setPhase(
         update
           ? `Version ${update.version} is available.`
-          : "You’re up to date.",
+          : "No newer version found on available sources.",
       );
-    } catch {
+    } catch (err) {
       if (isAlive()) {
         setPhase("Automatic checks retry every 6 hours.");
-        setError(
-          "Could not check GitHub. Check your connection and try again.",
-        );
+        setError(err instanceof Error ? err.message : String(err));
       }
     } finally {
       checking.current = false;
@@ -95,7 +96,10 @@ export function AppUpdater({
           setPhase("Installing… ProxyKing will close and restart.");
         },
         (event) => {
-          if (event.event === "Started") total = event.data.contentLength ?? 0;
+          if (event.event === "Started") {
+            downloaded = 0;
+            total = event.data.contentLength ?? 0;
+          }
           if (event.event === "Progress") {
             downloaded += event.data.chunkLength;
             if (total)
@@ -131,8 +135,8 @@ export function AppUpdater({
           </p>
         ) : (
           <p>
-            Signed updates from flazedude/proxyking. Installation disconnects
-            the proxy.
+            Signed updates from your LAN hosts and GitHub. Installation
+            disconnects the proxy.
           </p>
         )}
       </div>
