@@ -1,0 +1,69 @@
+# ProxyKing architecture
+
+ProxyKing starts as a Windows desktop client for user-supplied Shadowsocks, VLESS, Trojan, HTTP/HTTPS, and SOCKS5 servers. React and TypeScript provide the interface, Tauri 2 provides the native shell, and sing-box carries proxy traffic. The intended release order is Windows, macOS, Android, then iOS.
+
+This document records the design and platform roadmap. Later-platform work described here is not implemented support.
+
+## Windows first release
+
+Version 0.2 adds selected-process routing through a Windows TUN interface. Matching executable paths use the chosen proxy and unmatched traffic goes direct. It requires administrator access; DNS stays with Windows. System-proxy mode and a loopback-only manual listener remain available. No mode implements a kill switch or device-wide DNS protection. See [process routing](PROCESS_ROUTING.md) for configuration, matching, elevation, and validation details.
+
+The core workflow is: import a supported share link, select a profile, connect, show actual engine state, then disconnect and restore prior proxy settings. Users supply their own server credentials. ProxyKing does not operate a server network.
+
+## Component boundaries
+
+| Component                | Responsibility                                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| React interface          | Profile selection, import form, connection controls, settings, and status presentation                                       |
+| Profile parser           | Parse supported links into a versioned internal profile; reject unsupported options instead of silently losing their meaning |
+| Rust application service | Validate command inputs, persist settings, protect credentials, supervise the engine, and expose state to the interface      |
+| Engine adapter           | Translate an internal profile to a pinned sing-box configuration and own engine lifecycle                                    |
+| Platform adapter         | Apply and restore OS proxy settings; future adapters own VPN/TUN lifecycle                                                   |
+| sing-box                 | Implement the proxy protocols and local HTTP/SOCKS server                                                                    |
+
+Keep native state authoritative. A frontend timeout or refresh must not create a second engine or report a disconnected session as connected. Serialize connect/disconnect transitions and expose failures with useful, redacted messages.
+
+Tauri supports Windows, macOS, Android, and iOS, including native Swift/Kotlin integration. Sharing the interface does not remove the need for platform-specific networking services. See [Tauri's overview](https://v2.tauri.app/) and [mobile plugin development](https://v2.tauri.app/develop/plugins/develop-mobile/).
+
+## Engine contract
+
+The verified stable upstream release on 2026-09-27 is [sing-box 1.14.2](https://github.com/SagerNet/sing-box/releases/tag/v1.14.2), published 2026-09-24. Pin a tested version and artifact hash; do not silently follow the newest release. Configuration compatibility is part of an engine upgrade.
+
+Generate one loopback `mixed` inbound and the selected proxy outbound. Keep `set_system_proxy` false because ProxyKing owns Windows state restoration. The [mixed inbound documentation](https://sing-box.sagernet.org/configuration/inbound/mixed/) describes the HTTP/SOCKS protocols and its optional automatic proxy behavior.
+
+Validate generated configuration with the selected engine before changing Windows settings. Start the engine, wait for readiness, apply the proxy, and only then report connected. If any step fails, undo the work already completed. Process liveness and a listening port do not prove that a remote server can carry traffic; report TCP latency as TCP latency, and reserve a successful connectivity claim for a request made through the proxy.
+
+Do not expose a local listener on all interfaces by default. Keep secrets out of command-line arguments, diagnostics, UI error messages, and source control. If a temporary plaintext engine configuration is necessary, limit its access and lifetime; encrypting saved profiles alone does not protect that temporary file.
+
+## Windows restoration contract
+
+Use `InternetQueryOption` and `InternetSetOption` with `INTERNET_OPTION_PER_CONNECTION_OPTION`, then notify consumers of the change. Microsoft advises against changing these settings directly through registry functions. Preserve the complete relevant previous state, including connection flags, proxy server, bypass list, and automatic configuration URL. See [setting and retrieving Internet options](https://learn.microsoft.com/en-us/windows/win32/wininet/setting-and-retrieving-internet-options) and [option flags](https://learn.microsoft.com/en-us/windows/win32/wininet/option-flags).
+
+Persist a recovery snapshot before applying settings. Restore it on disconnect, ordinary app exit, and engine failure, or on the next launch after an interrupted session. If the complete configuration still matches ProxyKing's applied state, restore the original snapshot. If another application replaced the proxy endpoint, preserve that application's configuration. If only individual fields such as bypass/PAC changed while the endpoint still belongs to ProxyKing, retire the stopped loopback endpoint and restore unchanged fields while retaining the newer field values. Keep the recovery record until restoration succeeds. Use a single-instance guard so two ProxyKing processes cannot own the same proxy configuration.
+
+Changing the user's Internet proxy is not the same as changing WinHTTP service configuration. The initial app should not invoke machine-wide `netsh winhttp` changes or require administrator access for ordinary proxy mode.
+
+Test failure paths as real behavior: occupied local port, invalid engine configuration, engine crash, repeated connect clicks, closing while connecting, previous PAC settings, external changes while connected, and restart after a crash. An abrupt app or OS termination cannot run cleanup code; persistent recovery is therefore necessary.
+
+## Credentials and trust
+
+Store profile secrets through a native secret-storage boundary. The Windows implementation can use user-scoped DPAPI; future implementations use the platform keystore. Return only the profile details the interface needs. Do not put credential-bearing share links in browser local storage or logs. Profiles and subscription content are untrusted input and cannot define shell commands or arbitrary executable paths.
+
+Local encryption protects stored data against a different account or offline copying; it does not protect secrets from code already running as the same logged-in user. Import should preserve protocol intent, require secure TLS defaults, and reject unsupported transports or parameters visibly.
+
+## Platform roadmap
+
+| Stage   | Native work                                                                                                                                       | Completion evidence                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Windows | Engine process supervision, user proxy adapter, DPAPI, signed distribution                                                                        | Profile import and real proxy connection, restoration and crash recovery tests, installer smoke test |
+| macOS   | Universal/architecture-specific engine packaging, proxy configuration per network service, Keychain, signing and notarization                     | Intel/Apple Silicon tests, network changes, restoration, signed app validation                       |
+| Android | Kotlin `VpnService`, engine library integration, protected outbound sockets, foreground service lifecycle, Android Keystore                       | User consent, reconnect/background behavior, Wi-Fi/mobile transitions, IPv6 and DNS tests            |
+| iOS     | Swift Network Extension packet tunnel target, engine library integration, shared configuration and Keychain access, entitlements and provisioning | Physical-device background and reconnect tests, IPv6/DNS behavior, store readiness                   |
+
+On Android, `VpnService.prepare()` obtains the system's consent; `protect()` keeps the tunnel socket out of its own VPN; Android permits one active VPN service per user/profile and requires the appropriate foreground lifecycle. These behaviors must live in the native adapter, not a WebView timer. See the [Android VPN guide](https://developer.android.com/develop/connectivity/vpn).
+
+iOS development requires macOS and Xcode. Network Extension uses dedicated entitlements and a provider extension; a Windows-style child process is not the mobile engine architecture. App proxy providers are per-app VPNs, so a general consumer tunnel should be designed around the packet tunnel provider and its supported deployment model. See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/), [Network Extension entitlements](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.networking.networkextension), and [Apple's app proxy description](https://developer.apple.com/documentation/networkextension/app-proxy-provider).
+
+Before iOS distribution, review the current [App Review Guidelines section 5.4](https://developer.apple.com/app-store/review/guidelines/#vpn-apps), including organizational enrollment and VPN privacy requirements. Recheck these requirements when that stage begins.
+
+Engine library integration on mobile also changes the licensing analysis. Track this before choosing a distribution license or store packaging approach; see [third-party notices](../THIRD_PARTY_NOTICES.md).
