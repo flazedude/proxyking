@@ -7,6 +7,8 @@ Checked on Windows x64 on 2026-10-31:
 - Frontend: 174 tests passed, including signature/download failure and proxy cleanup failure behavior for updates; production build passed.
 - Rust: 19 tests passed; one routing fixture is invoked separately by an integration test. Strict Clippy passed.
 - Native updater plugin, HTTPS GitHub Releases feed, embedded public key, and per-user installer artifacts are configured. The private signing key is outside the repository and encrypted in GitHub Actions secrets.
+- Windows x64 release executable, NSIS installer, and updater signature built successfully. The running older portable copy was preserved; the new installer is available separately.
+- Vite, Vitest, and source-map-js were patched; npm audit reported zero vulnerabilities afterward. Git line endings are pinned to LF so Windows checkouts pass the same formatting checks.
 - AGENTS.md records setup on another computer, future commit/push expectations, validation, and signing-key continuity. Version scripts check and update the frontend, Tauri, npm lockfile, and Rust manifest together.
 
 A real upgrade to a higher published version, Windows installer restart, and retention of encrypted profiles across an installed upgrade have not yet been exercised. Update tests do not modify Windows proxy settings or install software.
