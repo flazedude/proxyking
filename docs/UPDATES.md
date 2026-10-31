@@ -29,6 +29,8 @@ cargo build --manifest-path src-tauri/Cargo.toml --release --locked --bin verify
 node scripts/mirror-release.mjs --server-config ../happycheats/artifacts/lan-updates/server.json
 ```
 
+If GitHub downloads require the Windows system proxy, use `./scripts/Run-LanMirror.ps1 -ServerConfiguration ../happycheats/artifacts/lan-updates/server.json`. This public-download wrapper honors the existing system proxy, stages the version-pinned files outside the served directory, and passes them through the same signature/version verifier. The scheduled mirror uses this wrapper. It does not change proxy settings or start a proxy connection.
+
 The helper reads this host's existing address/public-directory settings, downloads the version-pinned installer, verifies its signature and signed version against ProxyKing's committed public key, refuses downgrades or changed same-version installer bytes, retains source/notices alongside the installer, then atomically exposes the LAN feed and `ProxyKing-Setup.exe`. LAN and GitHub installers use identical bytes and signatures. It never reads a private key. `--version X.Y.Z` pins a published release; `--from-directory PATH` uses a fully prepared local release directory with a canonical GitHub manifest for recovery.
 
 Enable this separate mirror task from administrator PowerShell after the shared server route is installed:

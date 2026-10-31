@@ -29,15 +29,20 @@ for (const [source, name] of [
   copyFileSync(join(root, source), join(output, name));
 }
 const response = await fetch(
-  "https://github.com/SagerNet/sing-box/archive/refs/tags/v1.14.2.tar.gz",
+  "https://github.com/flazedude/proxyking/releases/download/v0.3.2/sing-box-1.14.2-source.tar.gz",
   { signal: AbortSignal.timeout(180000) },
 );
 if (!response.ok)
   throw new Error(`Engine source download failed: ${response.status}`);
-writeFileSync(
-  join(output, "sing-box-1.14.2-source.tar.gz"),
-  Buffer.from(await response.arrayBuffer()),
-);
+const engineSource = Buffer.from(await response.arrayBuffer());
+// Freeze the already-published exact upstream source archive. GitHub can regenerate
+// tag archives with different gzip bytes, which must not replace an immutable LAN file.
+if (
+  createHash("sha256").update(engineSource).digest("hex") !==
+  "67dd8f8c37ecaaadcfcafad1f0827eed4b034c963b86fd3aa5c0d7a36876845d"
+)
+  throw new Error("Pinned engine source archive checksum mismatch.");
+writeFileSync(join(output, "sing-box-1.14.2-source.tar.gz"), engineSource);
 const metadata = JSON.parse(
   execFileSync(
     "cargo",

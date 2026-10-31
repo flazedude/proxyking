@@ -68,6 +68,14 @@ if (
   typeof platform.signature !== "string"
 )
   throw new Error("Unexpected signed Windows release metadata.");
+const platforms = Object.values(manifest.platforms);
+if (
+  platforms.some(
+    (entry) =>
+      entry.url !== platform.url || entry.signature !== platform.signature,
+  )
+)
+  throw new Error("Manifest platforms disagree about the Windows package.");
 const destination = join(resolve(server.PublicDirectory), "proxyking");
 const cache = join(root, "release", "mirror-cache", version);
 mkdirSync(cache, { recursive: true });
@@ -153,9 +161,7 @@ for (const name of [
 }
 atomicFile("ProxyKing-Setup.exe", installer);
 const lan = `http://${server.Address}:${server.Port}/proxyking/${filename}`;
-for (const entry of Object.values(manifest.platforms)) {
-  if (entry.url !== platform.url || entry.signature !== platform.signature)
-    throw new Error("Manifest platforms disagree about the Windows package.");
+for (const entry of platforms) {
   entry.url = lan;
 }
 if (existsSync(feedPath))
