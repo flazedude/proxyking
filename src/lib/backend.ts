@@ -17,6 +17,7 @@ export const defaultState: SavedState = {
     localPort: 2080,
     routingMode: "processes",
     selectedProcesses: [],
+    usageLogging: false,
   },
 };
 export const defaultStatus: RuntimeStatus = {
@@ -43,6 +44,7 @@ export const backend = {
       ...data,
       settings: {
         ...data.settings,
+        usageLogging: data.settings.usageLogging ?? false,
         routingMode:
           data.settings.routingMode ??
           (data.settings.systemProxy ? "system" : "local"),

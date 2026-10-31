@@ -22,6 +22,8 @@ pub struct AppSettings {
     pub routing_mode: Option<String>,
     #[serde(default)]
     pub selected_processes: Vec<SelectedProcess>,
+    #[serde(default)]
+    pub usage_logging: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +72,7 @@ impl Default for AppSettings {
             local_port: 2080,
             routing_mode: Some("processes".into()),
             selected_processes: Vec::new(),
+            usage_logging: false,
         }
     }
 }
@@ -130,6 +133,7 @@ mod tests {
             assert_eq!(settings.effective_routing_mode(), expected);
             assert!(settings.selected_processes.is_empty());
             assert_eq!(settings.system_proxy, enabled);
+            assert!(!settings.usage_logging);
         }
         assert_eq!(AppSettings::default().effective_routing_mode(), "processes");
         assert!(!AppSettings::default().system_proxy);

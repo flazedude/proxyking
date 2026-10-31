@@ -53,6 +53,10 @@ Open [the local preview](http://127.0.0.1:1420). Browser preview profiles live o
 
 **Proxy running** means the local engine is listening. TCP tests only check server reachability. Neither proves that remote credentials work; server authentication happens when traffic is sent through the proxy. You must supply a working server; no servers or subscriptions are included.
 
+Open **Activity → Usage logging** to turn connection logging on or off, including while connected. It defaults to off and remembers your choice. When on, Activity shows observed app executable names, destination host/IP and port, TCP/UDP, and **Proxy** or **Direct** routing. Attribution can be unavailable, and connections that finish between monitor samples may be missed. A log entry records an observed route, not proof of successful delivery. Only traffic handled by ProxyKing's engine is visible; this is not a device-wide browsing history.
+
+The latest 300 usage entries stay in memory, alongside session events. **Off** stops collecting new entries and keeps existing history; **Clear** removes the displayed history. Closing the app discards it. URLs, page contents, executable directory/account paths, proxy credentials, and raw engine logs are not recorded. Browser preview never monitors connections.
+
 ## Included in this milestone
 
 - Overview, searchable profile library, rename/delete, activity, and connection settings.

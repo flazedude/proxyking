@@ -28,6 +28,7 @@ export interface AppSettings {
   localPort: number;
   routingMode: RoutingMode;
   selectedProcesses: ProcessTarget[];
+  usageLogging: boolean;
 }
 
 export interface SavedState {

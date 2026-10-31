@@ -1,5 +1,17 @@
 # Windows preview validation
 
+## Unreleased — optional usage activity
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 176 tests passed; production TypeScript/Vite build and formatting passed. New adapter tests cover old-settings migration, the logging preference, and inert in-memory browser behavior.
+- Native: 23 tests passed; one self-spawn fixture is invoked by the routing tests. Strict Clippy and Rust formatting passed.
+- The real-engine selected-process loopback test now enables the production usage controller and checks executable attribution plus both Proxy and Direct labels. The production TUN configuration, including the controller and process discovery, passes engine validation before only the TUN inbound is removed for traffic tests.
+- The encrypted forwarding/lifecycle test reads authenticated metadata from an active Shadowsocks connection, rejects unauthenticated controller access, verifies the saved on/off preference, and checks stale-sample rejection after Clear, Off, and disconnect. Unit tests cover duplicate suppression, bounded history, IPv6, unknown apps, Unicode names, rejecting credential-bearing URLs, and fixed monitor-failure warnings.
+- Browser Activity layout and accessible switch checked in both On and Off states. Preview does not collect traffic, and no browser console errors were observed.
+
+Tests use loopback only and do not change Windows proxy, routing, DNS, or firewall settings. Live elevated TUN capture and external provider traffic remain unverified. Usage is sampled from active connections, so very short connections may be missed; process attribution can be unavailable. This source iteration has not been packaged or published as an installed-app update.
+
 ## Version 0.3.1 — launcher children
 
 Checked on Windows x64 on 2026-10-31:

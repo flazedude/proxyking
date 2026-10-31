@@ -378,6 +378,7 @@ export default function App() {
     error?: boolean;
   } | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const logsEpoch = useRef(0);
   const [appLogs, setAppLogs] = useState<LogEntry[]>([]);
   const [latencies, setLatencies] = useState<Record<string, number | "failed">>(
     {},
@@ -428,6 +429,7 @@ export default function App() {
       if (alive) setNow(Date.now());
       if (!isDesktop || polling) return;
       polling = true;
+      const epoch = logsEpoch.current;
       try {
         const [runtime, entries] = await Promise.all([
           backend.status(),
@@ -435,7 +437,7 @@ export default function App() {
         ]);
         if (alive) {
           setStatus(runtime);
-          setLogs(entries);
+          if (epoch === logsEpoch.current) setLogs(entries);
         }
       } catch (err) {
         if (alive)
@@ -1235,14 +1237,19 @@ export default function App() {
               <div className="section-heading">
                 <div>
                   <h2>Session activity</h2>
-                  <p>Newest events first. No traffic contents are recorded.</p>
+                  <p>
+                    Newest first. Recent history stays in memory until cleared
+                    or the app closes.
+                  </p>
                 </div>
                 <button
                   className="button secondary small-button"
-                  disabled={!allLogs.length}
+                  disabled={busy || !allLogs.length}
                   onClick={async () => {
                     try {
+                      logsEpoch.current += 1;
                       await backend.clearLogs();
+                      logsEpoch.current += 1;
                       setLogs([]);
                       setAppLogs([]);
                     } catch (err) {
@@ -1252,6 +1259,51 @@ export default function App() {
                 >
                   <Trash2 size={15} /> Clear
                 </button>
+              </div>
+              <div className="activity-controls">
+                <div>
+                  <h3>Usage logging</h3>
+                  <p id="usage-logging-description">
+                    Record observed app connections, destination addresses and
+                    ports, and Proxy or Direct routing. No page URLs, traffic
+                    contents, or credentials are recorded. Very short
+                    connections may be missed; app names may be unavailable.
+                  </p>
+                  <p>
+                    {isDesktop
+                      ? data.settings.usageLogging
+                        ? "Logging is on. Existing connections may appear when logging starts."
+                        : "Logging is off. Existing history is kept; Clear removes it."
+                      : "Browser preview only. Usage is recorded in the Windows app."}
+                  </p>
+                </div>
+                <div className="activity-toggle">
+                  <span>{data.settings.usageLogging ? "On" : "Off"}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label="Usage logging"
+                    aria-checked={data.settings.usageLogging}
+                    aria-describedby="usage-logging-description"
+                    className={`toggle ${data.settings.usageLogging ? "on" : ""}`}
+                    disabled={busy || !loaded || !!loadError}
+                    onClick={async () => {
+                      try {
+                        await persist({
+                          ...data,
+                          settings: {
+                            ...data.settings,
+                            usageLogging: !data.settings.usageLogging,
+                          },
+                        });
+                      } catch (err) {
+                        setNotice({ text: errorMessage(err), error: true });
+                      }
+                    }}
+                  >
+                    <span />
+                  </button>
+                </div>
               </div>
               {allLogs.length ? (
                 <div className="log-list">
@@ -1277,7 +1329,8 @@ export default function App() {
                   </span>
                   <h3>A quiet network moment.</h3>
                   <p>
-                    Connection events will appear here as you use ProxyKing.
+                    Connection events appear here as you use ProxyKing. Turn on
+                    usage logging to also see observed app connections.
                   </p>
                 </div>
               )}

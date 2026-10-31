@@ -135,6 +135,10 @@ struct MockServer {
 
 impl MockServer {
     fn start(proxy: bool, marker: &'static str) -> Self {
+        Self::with_delay(proxy, marker, Duration::ZERO)
+    }
+
+    fn with_delay(proxy: bool, marker: &'static str, delay: Duration) -> Self {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let address = listener.local_addr().unwrap();
         listener.set_nonblocking(true).unwrap();
@@ -175,6 +179,7 @@ impl MockServer {
                             return Err(format!("unexpected origin request: {request:?}"));
                         }
                         let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{marker}", marker.len());
+                        thread::sleep(delay);
                         stream
                             .write_all(response.as_bytes())
                             .map_err(|e| e.to_string())?;
@@ -257,6 +262,42 @@ fn run_client(executable: &Path, proxy_port: u16, origin_port: u16, expected: &s
     );
 }
 
+fn run_observed_client(
+    executable: &Path,
+    proxy_port: u16,
+    origin_port: u16,
+    expected: &'static str,
+    route: &str,
+    controller: &crate::usage::Controller,
+) {
+    let mut usage = crate::usage::Usage::default();
+    usage.set_enabled(true);
+    usage.attach(Some(controller.clone()));
+    let app = executable
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_lowercase();
+    let executable = executable.to_owned();
+    let client = thread::spawn(move || run_client(&executable, proxy_port, origin_port, expected));
+    let deadline = Instant::now() + Duration::from_secs(4);
+    loop {
+        let (generation, monitor) = usage.request().unwrap();
+        usage.accept(generation, monitor.snapshot());
+        if usage.logs.iter().any(|entry| {
+            entry.message.to_lowercase().starts_with(&app) && entry.message.contains(route)
+        }) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "real app attribution or route missing from usage entries"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    client.join().unwrap();
+}
+
 #[test]
 #[ignore = "invoked in a separate process by the real-engine routing test"]
 fn routing_client_fixture() {
@@ -329,8 +370,10 @@ fn real_engine_routes_only_selected_executable_without_tun() {
     );
     let selected = std::env::current_exe().unwrap();
     let unselected = FixtureCopy::new(&selected);
-    let mut origin = MockServer::start(false, "direct-origin-marker");
-    let mut upstream = MockServer::start(true, "selected-proxy-marker");
+    let mut origin =
+        MockServer::with_delay(false, "direct-origin-marker", Duration::from_millis(500));
+    let mut upstream =
+        MockServer::with_delay(true, "selected-proxy-marker", Duration::from_millis(500));
     let reservation = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
     let local_port = reservation.local_addr().unwrap().port();
     let profile = Profile {
@@ -346,6 +389,7 @@ fn real_engine_routes_only_selected_executable_without_tun() {
         system_proxy: false,
         local_port,
         routing_mode: Some("processes".into()),
+        usage_logging: false,
         selected_processes: vec![SelectedProcess {
             name: "Selected test executable".into(),
             include_children: false,
@@ -357,6 +401,7 @@ fn real_engine_routes_only_selected_executable_without_tun() {
         }],
     };
     let mut configuration = config::build_config(&profile, &settings).unwrap();
+    let controller = crate::usage::Controller::configure(&mut configuration).unwrap();
     let checked = start_engine(&engine, "check", &configuration).output();
     assert!(
         checked.status.success(),
@@ -387,18 +432,22 @@ fn real_engine_routes_only_selected_executable_without_tun() {
         thread::sleep(Duration::from_millis(20));
     }
 
-    run_client(
+    run_observed_client(
         &selected,
         local_port,
         origin.address.port(),
         "selected-proxy-marker",
+        "TCP · Proxy",
+        &controller,
     );
     upstream.finish();
-    run_client(
+    run_observed_client(
         &unselected.executable,
         local_port,
         origin.address.port(),
         "direct-origin-marker",
+        "TCP · Direct",
+        &controller,
     );
     origin.finish();
     drop(running);

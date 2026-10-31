@@ -1156,6 +1156,44 @@ main {
 .log-list {
   padding: 0 23px;
 }
+.activity-controls {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 23px;
+  border-bottom: 1px solid #e9eddf;
+  background: #f9fbf5;
+}
+.activity-controls h3 {
+  margin: 0 0 7px;
+  font-size: 13px;
+}
+.activity-controls p {
+  margin: 5px 0 0;
+  max-width: 670px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #839472;
+}
+.activity-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  min-height: 24px;
+}
+.activity-toggle .toggle {
+  height: 21px;
+}
+.log-entry > span:last-child {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.log-level.usage {
+  color: #557d80;
+  background: #e7f2f2;
+}
 .log-entry {
   display: grid;
   grid-template-columns: 49px 88px 1fr;

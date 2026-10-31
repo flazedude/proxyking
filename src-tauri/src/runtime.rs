@@ -5,6 +5,7 @@ use crate::{
     platform,
     proxy::SystemProxy,
     storage,
+    usage::{Controller, Usage},
 };
 use std::{
     collections::VecDeque,
@@ -35,6 +36,7 @@ struct Runtime {
     system_proxy: SystemProxy,
     logs: VecDeque<LogEntry>,
     child_rules: Option<ChildRules>,
+    usage: Usage,
 }
 
 impl Runtime {
@@ -66,6 +68,7 @@ impl Runtime {
         }
         self.job = None;
         self.child_rules = None;
+        self.usage.attach(None);
         self.status.inherited_processes.clear();
         self.status.connected_at = None;
         self.status.profile_id = None;
@@ -95,6 +98,13 @@ impl Service {
                         .map(|line| line.chars().take(100).collect())
                 })
         });
+        let mut usage = Usage::default();
+        usage.set_enabled(
+            storage::read_encrypted::<SavedState>(&data_dir.join("profiles.dat"))
+                .ok()
+                .flatten()
+                .is_some_and(|state| state.settings.usage_logging),
+        );
         let mut runtime = Runtime {
             status: RuntimeStatus {
                 engine_available: engine.is_some(),
@@ -108,6 +118,7 @@ impl Service {
             system_proxy: SystemProxy::new(&data_dir),
             logs: VecDeque::new(),
             child_rules: None,
+            usage,
         };
         match runtime.system_proxy.restore() {
             Ok(false) => runtime.log("warn", "A previous proxy session ended unexpectedly; newer Windows settings were preserved."),
@@ -182,6 +193,28 @@ impl Service {
                 }
             };
         });
+        let weak = Arc::downgrade(&service);
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(1));
+            let Some(service) = weak.upgrade() else {
+                break;
+            };
+            if service.shutting_down.load(Ordering::SeqCst) {
+                break;
+            }
+            let request = service
+                .inner
+                .lock()
+                .ok()
+                .and_then(|runtime| runtime.usage.request());
+            if let Some((generation, controller)) = request {
+                // Never hold the lifecycle lock during an HTTP request.
+                let result = controller.snapshot();
+                if let Ok(mut runtime) = service.inner.lock() {
+                    runtime.usage.accept(generation, result);
+                }
+            }
+        });
         service
     }
 
@@ -205,7 +238,13 @@ impl Service {
             .storage_lock
             .lock()
             .map_err(|_| "Profile storage is busy.")?;
-        storage::write_encrypted(&self.data_dir.join("profiles.dat"), &state)
+        let mut runtime = self
+            .inner
+            .lock()
+            .map_err(|_| "Connection state is unavailable.")?;
+        storage::write_encrypted(&self.data_dir.join("profiles.dat"), &state)?;
+        runtime.usage.set_enabled(state.settings.usage_logging);
+        Ok(())
     }
 
     pub fn list_processes(&self) -> Result<Vec<RunningProcess>, String> {
@@ -235,22 +274,25 @@ impl Service {
     }
 
     pub fn logs(&self) -> Result<Vec<LogEntry>, String> {
-        Ok(self
+        let runtime = self
             .inner
             .lock()
-            .map_err(|_| "Connection state is unavailable.")?
+            .map_err(|_| "Connection state is unavailable.")?;
+        Ok(runtime
             .logs
             .iter()
+            .chain(runtime.usage.logs.iter())
             .cloned()
             .collect())
     }
 
     pub fn clear_logs(&self) -> Result<(), String> {
-        self.inner
+        let mut runtime = self
+            .inner
             .lock()
-            .map_err(|_| "Connection state is unavailable.")?
-            .logs
-            .clear();
+            .map_err(|_| "Connection state is unavailable.")?;
+        runtime.logs.clear();
+        runtime.usage.clear();
         Ok(())
     }
 
@@ -322,6 +364,7 @@ impl Service {
                 settings.local_port
             )
         })?;
+        let controller = Controller::configure(&mut configuration)?;
         runtime.status.state = "connecting".into();
         runtime.status.error = None;
         runtime.status.profile_id = Some(profile.id.clone());
@@ -417,6 +460,7 @@ impl Service {
             return Err(error);
         }
         runtime.status.state = "connected".into();
+        runtime.usage.attach(Some(controller));
         runtime.status.connected_at = Some(now_ms());
         if process_mode {
             runtime.log("info", "Application tunnel is ready. Selected executable paths use this proxy; other and unidentified processes route directly. Windows DNS settings are unchanged.");
@@ -595,6 +639,7 @@ mod tests {
                     local_port: 2080,
                     routing_mode: Some("local".into()),
                     selected_processes: Vec::new(),
+                    usage_logging: false,
                 },
             )
             .unwrap();
@@ -699,6 +744,7 @@ mod tests {
             local_port: port,
             routing_mode: Some("local".into()),
             selected_processes: Vec::new(),
+            usage_logging: true,
         };
         let saved = SavedState {
             profiles: vec![profile.clone()],
@@ -729,8 +775,10 @@ mod tests {
             let deadline = Instant::now() + Duration::from_secs(8);
             loop {
                 if let Ok((mut stream, _)) = origin.accept() {
+                    // Accepted Windows sockets inherit the listener's nonblocking mode.
+                    stream.set_nonblocking(false).unwrap();
                     stream
-                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .set_read_timeout(Some(Duration::from_secs(5)))
                         .unwrap();
                     let mut request = [0; 1024];
                     let length = stream.read(&mut request).unwrap();
@@ -776,6 +824,54 @@ mod tests {
             connect_reply[1], 0,
             "SOCKS CONNECT must succeed through Shadowsocks"
         );
+        // Keep a real routed connection alive while inspecting structured metadata.
+        // This never creates a TUN adapter or changes Windows proxy settings.
+        let (generation, controller) = service.inner.lock().unwrap().usage.request().unwrap();
+        let snapshot = controller
+            .snapshot()
+            .expect("authenticated engine usage API");
+        service
+            .inner
+            .lock()
+            .unwrap()
+            .usage
+            .accept(generation, Ok(snapshot));
+        let entries = service.logs().unwrap();
+        let usage = entries
+            .iter()
+            .find(|entry| entry.level == "usage")
+            .expect("real proxied connection must be visible");
+        assert!(usage.message.contains(&format!("127.0.0.1:{origin_port}")));
+        assert!(usage.message.contains("TCP · Proxy"));
+        assert!(!usage.message.contains("test-only-password"));
+        assert!(controller.unauthorized_for_test().is_err());
+        service.clear_logs().unwrap();
+        service
+            .inner
+            .lock()
+            .unwrap()
+            .usage
+            .accept(generation, controller.snapshot());
+        assert!(
+            service.logs().unwrap().is_empty(),
+            "clear rejects in-flight snapshots"
+        );
+        let mut disabled = saved.clone();
+        disabled.settings.usage_logging = false;
+        service.save(&disabled).unwrap();
+        assert!(!service.load().unwrap().settings.usage_logging);
+        assert!(service.inner.lock().unwrap().usage.request().is_none());
+        service
+            .inner
+            .lock()
+            .unwrap()
+            .usage
+            .accept(generation, controller.snapshot());
+        assert!(
+            service.logs().unwrap().is_empty(),
+            "off rejects stale samples"
+        );
+        service.save(&saved).unwrap();
         socket
             .write_all(
                 b"GET /proxyking-test HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
@@ -787,6 +883,7 @@ mod tests {
         origin_thread.join().unwrap();
         drop(socket);
         assert_eq!(service.disconnect().unwrap().state, "disconnected");
+        assert!(service.inner.lock().unwrap().usage.request().is_none());
         assert!(
             TcpStream::connect((Ipv4Addr::LOCALHOST, port)).is_err(),
             "disconnect must close the engine listener"

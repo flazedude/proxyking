@@ -7,6 +7,7 @@ mod proxy;
 mod routing_tests;
 mod runtime;
 mod storage;
+mod usage;
 
 // Keep native core unit tests independent of the GUI runtime and its Windows
 // Common Controls activation manifest, which Tauri embeds only in app binaries.
