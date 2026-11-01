@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { inspectServerImport, isYamlDownloadUrl } from "./server-import";
+import {
+  inspectServerImport,
+  isYamlDownloadUrl,
+  serverImportError,
+} from "./server-import";
 
 const yaml = `proxies:
   - { name: Imported, type: socks5, server: proxy.example, port: 1080 }
@@ -33,20 +37,23 @@ describe("server import input routing", () => {
     },
   );
 
-  it("fetches a YAML URL once, reviews nodes, and never includes the URL in the result", async () => {
-    const fetchYaml = vi.fn().mockResolvedValue(yaml);
-    const url = "https://config.example/config.yaml?token=test-only-secret";
-    const result = await inspectServerImport(` ${url} `, "auto", fetchYaml);
-    expect(fetchYaml.mock.calls).toEqual([[url]]);
-    expect(result.kind).toBe("review");
-    if (result.kind !== "review") throw new Error("Expected review");
-    expect(result.report.profiles).toHaveLength(1);
-    expect(result.report.profiles[0].outbound).toMatchObject({
-      type: "socks",
-      server_port: 1080,
-    });
-    expect(JSON.stringify(result)).not.toContain("test-only-secret");
-  });
+  it.each(["http", "https"])(
+    "fetches a %s YAML URL once, reviews nodes, and never includes the URL in the result",
+    async (scheme) => {
+      const fetchYaml = vi.fn().mockResolvedValue(yaml);
+      const url = `${scheme}://config.example/config.yaml?token=test-only-secret`;
+      const result = await inspectServerImport(` ${url} `, "auto", fetchYaml);
+      expect(fetchYaml.mock.calls).toEqual([[url]]);
+      expect(result.kind).toBe("review");
+      if (result.kind !== "review") throw new Error("Expected review");
+      expect(result.report.profiles).toHaveLength(1);
+      expect(result.report.profiles[0].outbound).toMatchObject({
+        type: "socks",
+        server_port: 1080,
+      });
+      expect(JSON.stringify(result)).not.toContain("test-only-secret");
+    },
+  );
 
   it("supports an explicit URL source for an address also shaped like a proxy", async () => {
     const fetchYaml = vi.fn().mockResolvedValue(yaml);
@@ -118,5 +125,18 @@ describe("server import input routing", () => {
       ),
     ).rejects.toThrow("Could not download");
     expect(fetchYaml).toHaveBeenCalledOnce();
+  });
+});
+
+describe("import error display", () => {
+  it("shows native string errors and parser errors instead of a generic failure", () => {
+    const message = "The YAML download was empty.";
+    expect(serverImportError(message, "Import failed.")).toBe(message);
+    expect(
+      serverImportError(new Error("Invalid Clash YAML."), "Import failed."),
+    ).toBe("Invalid Clash YAML.");
+    for (const error of [null, undefined, {}, "", " "]) {
+      expect(serverImportError(error, "Import failed.")).toBe("Import failed.");
+    }
   });
 });

@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { Dialog } from "./Dialog";
 import { backend } from "../lib/backend";
-import { inspectServerImport, isYamlDownloadUrl } from "../lib/server-import";
+import {
+  inspectServerImport,
+  isYamlDownloadUrl,
+  serverImportError,
+} from "../lib/server-import";
 import type { ImportSource } from "../lib/server-import";
 import type { ClashProfiles } from "../lib/clash-profiles";
 import type { Profile } from "../types";
@@ -30,9 +34,7 @@ export function ServerImportDialog({
       wide
     >
       <p className="pk-muted">
-        Paste share links, Clash YAML, or its HTTPS download URL. Supported
-        servers are copied into ProxyKing; Clash settings and files stay
-        untouched.
+        Paste share links, Clash YAML, or an HTTP/HTTPS YAML URL.
       </p>
       <form
         onSubmit={async (event) => {
@@ -51,9 +53,7 @@ export function ServerImportDialog({
             } else setReport(result.report);
           } catch (err) {
             setError(
-              err instanceof Error
-                ? err.message
-                : "Could not import this configuration.",
+              serverImportError(err, "Could not import this configuration."),
             );
           } finally {
             setBusy(false);
@@ -84,7 +84,7 @@ export function ServerImportDialog({
         </div>
         <label className="pk-field">
           {source === "url"
-            ? "HTTPS YAML download URL"
+            ? "YAML download URL"
             : "Configuration, share links, or YAML URL"}
           <textarea
             value={text}
@@ -104,9 +104,15 @@ export function ServerImportDialog({
         </label>
         <p id="import-source-help" className="pk-small pk-muted">
           {downloading
-            ? "Download this URL once, then review supported servers before importing. HTTPS is required. The URL is not saved or refreshed automatically."
+            ? "Download once and review servers before importing. The URL is not saved."
             : "Paste the YAML contents or choose a local file. Download URLs are detected automatically; direct HTTP/SOCKS proxy links need an explicit port."}
         </p>
+        {downloading && /^\s*http:\/\//i.test(text) && (
+          <p className="pk-callout" role="note">
+            HTTP is unencrypted. The link and server credentials can be read or
+            changed in transit. Use HTTPS if available.
+          </p>
+        )}
         <button
           type="button"
           className="pk-button pk-file-button"
@@ -189,11 +195,7 @@ export function ServerImportDialog({
                   await save(report.profiles);
                   close();
                 } catch (err) {
-                  setError(
-                    err instanceof Error
-                      ? err.message
-                      : "Could not save servers.",
-                  );
+                  setError(serverImportError(err, "Could not save servers."));
                 } finally {
                   setBusy(false);
                 }

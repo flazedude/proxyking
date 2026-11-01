@@ -31,6 +31,7 @@ Install Node.js 22.12+, Rust 1.90+ with MSVC, Microsoft C++ Build Tools, and Web
 
 ## Essential constraints
 
+- Keep all installed-app and preview text plain and functional. Do not add slogans, promotional hero copy, or repeated ownership phrases such as "Your games. Your server."
 - React/TypeScript UI in `src`; Tauri/Rust commands and engine supervision in `src-tauri/src`.
 - Keep browser preview inert: no real proxy connections, native process enumeration, persistent credentials, or update downloads.
 - Store credentials only through account-scoped DPAPI storage. Do not log share links, passwords, UUIDs, engine raw output, or private signing keys.

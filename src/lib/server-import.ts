@@ -4,6 +4,12 @@ import type { ClashProfiles } from "./clash-profiles";
 import type { Profile } from "../types";
 
 export type ImportSource = "auto" | "url";
+
+/** Native Tauri commands reject with sanitized strings, not Error instances. */
+export function serverImportError(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" && error.trim() ? error : fallback;
+}
 type ImportResult =
   | { kind: "review"; report: ClashProfiles }
   | { kind: "links"; profiles: Profile[] };

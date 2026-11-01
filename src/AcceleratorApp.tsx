@@ -335,19 +335,6 @@ export default function AcceleratorApp() {
           ))}
         </nav>
         <div className="pk-sidebar-bottom">
-          <div className="pk-local-card">
-            <ShieldCheck size={19} />
-            <strong>
-              Your games.
-              <br />
-              Your server.
-            </strong>
-            <p>
-              Explicit executable selection.
-              <br />
-              No automatic connections.
-            </p>
-          </div>
           <div className="pk-version">
             WINDOWS X64 <span>v{version}</span>
           </div>
@@ -433,26 +420,17 @@ export default function AcceleratorApp() {
             )}
             <div className="pk-page-heading">
               <div>
-                <div className="pk-eyebrow">YOUR NEXT SESSION</div>
                 <h1>
                   {page === "play"
                     ? "Game accelerator"
                     : page === "library"
-                      ? "Your library"
+                      ? "Library"
                       : page === "servers"
                         ? "Server library"
                         : page === "activity"
                           ? "Session activity"
                           : "Preferences"}
-                  <span>.</span>
                 </h1>
-                <p>
-                  {page === "play" || page === "library"
-                    ? "Your installed games. Your selected executables."
-                    : page === "servers"
-                      ? "Independent server profiles, encrypted for your Windows account."
-                      : "Control your session and connection preferences."}
-                </p>
               </div>
               {(page === "play" || page === "library") && (
                 <button
@@ -471,14 +449,7 @@ export default function AcceleratorApp() {
             {page === "play" && (
               <section className="pk-hero">
                 <div className="pk-hero-copy">
-                  <span className="pk-hero-tag">
-                    <ShieldCheck size={13} /> CHOOSE YOUR EXECUTABLES
-                  </span>
-                  <h2>
-                    One session.
-                    <br />
-                    <span>Your selection.</span>
-                  </h2>
+                  <h2>Select apps</h2>
                   <p>
                     Select a game or launcher below.
                     <br />
@@ -491,7 +462,7 @@ export default function AcceleratorApp() {
                       setFilter("games");
                     }}
                   >
-                    Explore your library <ArrowRight size={15} />
+                    Open library <ArrowRight size={15} />
                   </button>
                 </div>
                 <div className="pk-hero-art" aria-hidden="true">
@@ -621,7 +592,7 @@ export default function AcceleratorApp() {
                             ? "Finding installed games…"
                             : query
                               ? "No matches"
-                              : "Your library starts here"}
+                              : "No games found"}
                         </h3>
                         <p>
                           {isDesktop
@@ -715,11 +686,8 @@ export default function AcceleratorApp() {
                     <FileUp size={25} />
                   </span>
                   <div>
-                    <h2>Your Clash config. A separate setup.</h2>
-                    <p>
-                      Import supported server nodes. ProxyKing owns its routing
-                      and runtime settings.
-                    </p>
+                    <h2>Import servers</h2>
+                    <p>Add servers manually or import YAML and share links.</p>
                   </div>
                 </div>
                 <div className="pk-action-row">
@@ -967,7 +935,7 @@ export default function AcceleratorApp() {
           </main>
           <aside className="pk-session" aria-label="Session configuration">
             <div className="pk-session-header">
-              <span>YOUR SESSION</span>
+              <span>SESSION</span>
               <span className="pk-offline">
                 {connected
                   ? "Engine running"
@@ -978,7 +946,7 @@ export default function AcceleratorApp() {
             </div>
             <div className="pk-session-body">
               <div className="pk-session-title">
-                <h2>Set your route.</h2>
+                <h2>Connection</h2>
                 <p>{labelForMode(mode)}</p>
               </div>
               <label className="pk-server-picker-label" htmlFor="active-server">
@@ -1131,16 +1099,6 @@ export default function AcceleratorApp() {
                   ? "Selected apps use your server. Other traffic goes direct through the TUN. Windows DNS is unchanged."
                   : labelForMode(mode)}
               </p>
-            </div>
-            <div className="pk-isolation-note">
-              <ShieldCheck size={20} />
-              <div>
-                <strong>Independent setup</strong>
-                <p>
-                  Own engine and encrypted profiles. This app never edits Clash
-                  configuration.
-                </p>
-              </div>
             </div>
           </aside>
         </div>

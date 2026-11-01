@@ -78,7 +78,7 @@ const nav = [
 ] as const;
 const titles: Record<Page, string> = {
   play: "Game accelerator",
-  library: "Your library",
+  library: "Library",
   servers: "Server library",
   activity: "Session activity",
   settings: "Preferences",
@@ -624,19 +624,6 @@ export function AcceleratorPreview() {
           ))}
         </nav>
         <div className="pk-sidebar-bottom">
-          <div className="pk-local-card">
-            <LockKeyhole size={18} />
-            <strong>
-              Your servers.
-              <br />
-              Your session.
-            </strong>
-            <p>
-              Bring your own config.
-              <br />
-              Choose your own games.
-            </p>
-          </div>
           <button
             className="pk-help"
             onClick={() => {
@@ -677,24 +664,7 @@ export function AcceleratorPreview() {
           <main id="pk-main" className="pk-main" tabIndex={-1}>
             <div className="pk-page-heading">
               <div>
-                <div className="pk-eyebrow">
-                  {page === "play"
-                    ? "YOUR NEXT SESSION"
-                    : "PROXYKING / WORKSPACE"}
-                </div>
-                <h1>
-                  {titles[page]}
-                  <span>.</span>
-                </h1>
-                <p>
-                  {page === "play" || page === "library"
-                    ? "Select the games and apps you want to accelerate."
-                    : page === "servers"
-                      ? "Bring your own servers. Keep your setup independent."
-                      : page === "activity"
-                        ? "Connection details belong here when native routing is ready."
-                        : "A preview of your next game acceleration workspace."}
-                </p>
+                <h1>{titles[page]}</h1>
               </div>
               {(page === "play" || page === "library") && (
                 <button className="pk-button" onClick={() => setShowAdd(true)}>
@@ -726,18 +696,9 @@ export function AcceleratorPreview() {
             {page === "play" && (
               <section className="pk-hero">
                 <div className="pk-hero-copy">
-                  <span className="pk-hero-tag">
-                    <Crosshair size={13} /> BUILT AROUND YOUR GAMES
-                  </span>
-                  <h2>
-                    One session.
-                    <br />
-                    <span>Your selection.</span>
-                  </h2>
+                  <h2>Select apps</h2>
                   <p>
-                    Games, launchers, or individual apps.
-                    <br />
-                    You choose what joins the session.
+                    Select games or apps, then review their executable paths.
                   </p>
                   <button
                     className="pk-button pk-primary"
@@ -746,7 +707,7 @@ export function AcceleratorPreview() {
                       setFilter("games");
                     }}
                   >
-                    Explore your library <ArrowRight size={16} />
+                    Open library <ArrowRight size={16} />
                   </button>
                 </div>
                 <div className="pk-hero-art" aria-hidden="true">
@@ -764,9 +725,7 @@ export function AcceleratorPreview() {
               <section className="pk-library">
                 <div className="pk-section-heading">
                   <h2>
-                    {page === "play"
-                      ? "Build your session"
-                      : "All games & apps"}
+                    {page === "play" ? "Games & apps" : "All games & apps"}
                     <span>{entries.length}</span>
                   </h2>
                   <span className="pk-sample-label">Sample library</span>
@@ -1010,7 +969,7 @@ export function AcceleratorPreview() {
                     <FileUp size={28} />
                   </span>
                   <div>
-                    <h2>Your Clash config. A separate setup.</h2>
+                    <h2>Import servers</h2>
                     <p>
                       Preview server labels without opening Clash Verge or
                       changing its configuration.
@@ -1144,7 +1103,7 @@ export function AcceleratorPreview() {
                 </section>
                 <section>
                   <span className="pk-eyebrow">APP ISOLATION</span>
-                  <h2>Separate by design</h2>
+                  <h2>Application settings</h2>
                   <p>
                     The intended native architecture owns its engine, encrypted
                     data, private ports, and executable rules. This preview does
@@ -1186,7 +1145,7 @@ export function AcceleratorPreview() {
           <aside className="pk-session" aria-label="Session configuration">
             <div className="pk-session-header">
               <span>
-                <Radio size={15} /> YOUR SESSION
+                <Radio size={15} /> SESSION
               </span>
               <span className="pk-offline">
                 <span /> Offline
@@ -1194,8 +1153,8 @@ export function AcceleratorPreview() {
             </div>
             <div className="pk-session-body">
               <div className="pk-session-title">
-                <h2>Set your route.</h2>
-                <p>A server. Your selected apps.</p>
+                <h2>Connection</h2>
+                <p>Selected server and apps</p>
               </div>
               <label
                 className="pk-server-picker-label"
@@ -1277,11 +1236,7 @@ export function AcceleratorPreview() {
                   <div className="pk-session-empty">
                     <Crosshair size={25} />
                     <p>No apps selected</p>
-                    <small>
-                      Choose a game from your library
-                      <br />
-                      to build your session.
-                    </small>
+                    <small>Choose a game from Library.</small>
                   </div>
                 )}
               </div>
@@ -1322,15 +1277,6 @@ export function AcceleratorPreview() {
               <p className="pk-start-note">
                 Native acceleration is not enabled in this preview.
               </p>
-            </div>
-            <div className="pk-isolation-note">
-              <span className="pk-isolation-icon">
-                <ShieldCheck size={20} />
-              </span>
-              <div>
-                <strong>Clash Verge stays yours</strong>
-                <p>This preview never reads or changes its configuration.</p>
-              </div>
             </div>
           </aside>
         </div>

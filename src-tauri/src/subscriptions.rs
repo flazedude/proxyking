@@ -5,12 +5,12 @@ const MAX_BYTES: usize = 512 * 1024;
 const MAX_URL_BYTES: usize = 8192;
 const MAX_REDIRECTS: usize = 5;
 const URL_ERROR: &str =
-    "Enter an HTTPS YAML download URL without a username, password, or fragment.";
+    "Enter an HTTP or HTTPS YAML download URL without a username, password, or fragment.";
 const DOWNLOAD_ERROR: &str =
     "Could not download the YAML configuration. Check the URL and network, or import a local file.";
 
 fn valid_url(url: &Url) -> bool {
-    url.scheme() == "https"
+    matches!(url.scheme(), "http" | "https")
         && url.host_str().is_some()
         && url.username().is_empty()
         && url.password().is_none()
@@ -31,6 +31,12 @@ fn parse_url(input: &str) -> Result<Url, String> {
     Ok(url)
 }
 
+fn valid_redirect(url: &Url, previous: &[Url]) -> bool {
+    previous.len() <= MAX_REDIRECTS
+        && valid_url(url)
+        && !(url.scheme() == "http" && previous.iter().any(|url| url.scheme() == "https"))
+}
+
 fn client_builder() -> reqwest::blocking::ClientBuilder {
     // The updater already enables rustls; share its provider without touching
     // Windows proxy settings or starting an engine. Normal client proxy discovery
@@ -47,7 +53,7 @@ fn client_builder() -> reqwest::blocking::ClientBuilder {
         .no_deflate()
         .no_zstd()
         .redirect(Policy::custom(|attempt| {
-            if attempt.previous().len() > MAX_REDIRECTS || !valid_url(attempt.url()) {
+            if !valid_redirect(attempt.url(), attempt.previous()) {
                 attempt.error("Unsupported YAML download redirect.")
             } else {
                 attempt.follow()
@@ -157,8 +163,9 @@ mod tests {
     }
 
     #[test]
-    fn accepts_https_document_urls_and_rejects_unsafe_inputs_without_echoing() {
+    fn accepts_http_and_https_document_urls_and_rejects_unsafe_inputs_without_echoing() {
         for input in [
+            "http://config.example/config.yaml",
             "https://config.example/config.yaml",
             "https://config.example/api?token=test-only-secret",
             " https://config.example:8443/ ",
@@ -166,8 +173,9 @@ mod tests {
             assert!(parse_url(input).is_ok());
         }
         for input in [
-            "http://config.example/config.yaml",
             "file:///config.yaml",
+            "http://user:test-only-secret@config.example/config.yaml",
+            "http://config.example/config.yaml#test-only-secret",
             "https://user:test-only-secret@config.example/config.yaml",
             "https://config.example/config.yaml#test-only-secret",
             "https://config.example:0/config.yaml",
@@ -187,11 +195,28 @@ mod tests {
     }
 
     #[test]
+    fn redirects_never_downgrade_https_and_stay_bounded() {
+        let http = Url::parse("http://config.example/config.yaml").unwrap();
+        let https = Url::parse("https://config.example/config.yaml").unwrap();
+        assert!(valid_redirect(&http, std::slice::from_ref(&http)));
+        assert!(valid_redirect(&https, std::slice::from_ref(&http)));
+        assert!(valid_redirect(&https, std::slice::from_ref(&https)));
+        assert!(!valid_redirect(&http, std::slice::from_ref(&https)));
+        assert!(!valid_redirect(&http, &[http.clone(), https.clone()]));
+        assert!(valid_redirect(&https, &vec![https.clone(); MAX_REDIRECTS]));
+        assert!(!valid_redirect(
+            &https,
+            &vec![https.clone(); MAX_REDIRECTS + 1]
+        ));
+    }
+
+    #[test]
     fn downloads_utf8_yaml_without_referer_and_returns_no_source_url() {
         let body =
             "proxies:\n  - name: 测试\n    type: socks5\n    server: example.com\n    port: 1080\n";
         let (url, task) = serve(response(body.as_bytes(), "Content-Type: text/yaml\r\n"));
-        assert_eq!(download(&test_client(), url).unwrap(), body);
+        // Exercise the public entry point so scheme validation cannot regress.
+        assert_eq!(fetch_yaml(url.as_str()).unwrap(), body);
         let request = task.join().unwrap().to_lowercase();
         assert!(request.contains("accept-encoding: identity\r\n"));
         assert!(!request.contains("referer:"));
@@ -220,10 +245,21 @@ mod tests {
     }
 
     #[test]
-    fn refuses_insecure_redirects_before_contacting_target() {
+    fn follows_http_redirects_for_an_http_source() {
+        let body = b"proxies: []";
+        let (target, target_task) = serve(response(body, ""));
+        let bytes = format!("HTTP/1.1 302 Found\r\nLocation: {target}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").into_bytes();
+        let (url, task) = serve(bytes);
+        assert_eq!(download(&test_client(), url).unwrap(), "proxies: []");
+        task.join().unwrap();
+        target_task.join().unwrap();
+    }
+
+    #[test]
+    fn refuses_unsafe_redirects_before_contacting_target() {
         let target = TcpListener::bind("127.0.0.1:0").unwrap();
         target.set_nonblocking(true).unwrap();
-        let bytes = format!("HTTP/1.1 302 Found\r\nLocation: http://{}/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", target.local_addr().unwrap()).into_bytes();
+        let bytes = format!("HTTP/1.1 302 Found\r\nLocation: http://user:test-only-secret@{}/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", target.local_addr().unwrap()).into_bytes();
         let (url, task) = serve(bytes);
         assert_eq!(download(&test_client(), url).unwrap_err(), DOWNLOAD_ERROR);
         task.join().unwrap();

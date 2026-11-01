@@ -1,6 +1,6 @@
 [package]
 name = "proxyking"
-version = "0.4.1"
+version = "0.4.2"
 description = "ProxyKing — a personal proxy client"
 authors = ["ProxyKing"]
 edition = "2021"

@@ -1,5 +1,15 @@
 # Windows preview validation
 
+## Version 0.4.2 — HTTP YAML imports and plain interface text
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 245 tests passed. HTTP and HTTPS downloads both reach YAML server review; sanitized native string failures and parser Error objects retain their messages instead of falling back to the generic import error. Version consistency, both production builds, formatting and diff checks passed.
+- Native: 40 tests passed, two existing helper/live-scan tests ignored by the default harness. Locked release-profile tests and strict all-target Clippy passed; Rust formatting passed. The public downloader successfully imports UTF-8 YAML from a local HTTP fixture. Tests cover HTTP redirects, upgrades to HTTPS, rejection of any HTTPS-to-HTTP downgrade, the five-redirect limit, unsafe redirect targets, bounded bodies and errors without URL/response content.
+- Browser UI: inspected the simplified home layout and HTTP notice with a synthetic example URL. Download submission displayed the Windows-app-only message without downloading. Slogans were removed from the installed interface and standalone concept; AGENTS.md records the plain-language preference. No native app data or routing settings were changed.
+
+The screenshot's HTTP scheme explains the original rejection; the dialog previously discarded Tauri's sanitized string error. The user's credential-bearing URL was not fetched, and live provider availability, installation and an installed upgrade remain unverified. No Windows proxy, route, DNS, firewall or Clash settings were changed.
+
 ## Version 0.4.1 — import YAML download URLs
 
 Checked on Windows x64 on 2026-11-01:
