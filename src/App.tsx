@@ -184,7 +184,7 @@ function ImportDialog({
   );
 }
 
-function SettingsPanel({
+export function SettingsPanel({
   settings,
   disabled,
   save,

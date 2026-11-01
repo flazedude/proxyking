@@ -1,8 +1,10 @@
 # Game accelerator redesign
 
-Status on 2026-11-01: browser prototype and source-level routing feasibility review. No new installed-app functionality is released by this milestone. The owner chose **open-source-only** routing components, accepting additional driver/signing work. Commercial SDKs are excluded from the implementation path.
+Status on 2026-11-01: v0.4.0 implements the first installed game library, real artwork, read-only game discovery, exact executable scopes and supported server-only Clash import using the existing engine. The owner chose **open-source-only** routing components, accepting additional driver/signing work. Commercial SDKs are excluded from the implementation path.
 
-## Explore the prototype
+The first installable version deliberately retains the existing routing backend with a conservative native Clash-process guard. It blocks new non-local connections while Clash is detected and monitors active non-local sessions, stopping only ProxyKing's engine when needed. It does not claim the future backend's simultaneous-tunnel guarantees. Release gates below concerning a new interception driver remain applicable to that later backend; they do not prohibit publishing the requested library/artwork/discovery iteration with documented existing-engine limits.
+
+## Original standalone prototype
 
 ```powershell
 npm ci
@@ -13,7 +15,7 @@ Open [the game accelerator preview](http://127.0.0.1:1421/accelerator.html). To 
 
 The preview has Play, Library, Servers, Activity, and Settings pages. Games, launchers, and manually entered executable paths have independent selectors. Steam, Battle.net, Epic, Riot, EA, Ubisoft, and GOG are sample launcher cards. Launcher-only, specific-game, and launcher-with-children selections are explicit. The session panel deduplicates full paths case-insensitively; selecting a game never implicitly adds its launcher or sibling games. Native process enumeration, installed-game discovery, file existence checks, launch actions, elevation, acceleration, and update downloads are absent.
 
-Artwork is original CSS geometry and text; no publisher artwork or third-party game logos are bundled. Sample install paths begin with `C:\Example Games` or `C:\Example Launchers`. Sample servers have no endpoints or credentials. All sample content is identified in the interface. Server latency and traffic show unmeasured placeholders, not fabricated measurements. Game names illustrate the interface; they do not claim routing or anti-cheat compatibility.
+The original concept used CSS geometry; it now shares the real poster/brand renderer with the installed interface. Publisher posters are loaded remotely, with pinned Simple Icons glyphs bundled for supported brands. Sample install paths begin with `C:\Example Games` or `C:\Example Launchers`. Sample servers have no endpoints or credentials. All sample content is identified in the interface. Server latency and traffic show unmeasured placeholders, not fabricated measurements. Game names illustrate the interface; they do not claim routing or anti-cheat compatibility.
 
 YAML import is **metadata only**, not a working profile import. It uses pinned `yaml` 2.9.1, a development dependency. The import report contains server names, types, and an unverified/disabled UDP label; endpoint details, passwords, UUIDs, provider URLs, raw nodes, and controller credentials are not retained in the report. The YAML text exists in the import dialog's memory until dismissal. No browser storage, network fetch, native invocation, provider-file access, script execution, config export, or connectivity test occurs. Reload discards all user changes.
 
@@ -64,5 +66,5 @@ ProxyBridge source was cloned for read-only inspection into a temporary research
 - Exercise authenticated upstream TCP and UDP, connected and unconnected UDP, multiple UDP destinations from one socket, IPv4/IPv6, MTU/fragmentation, DNS/fake-IP behavior, loopback exclusions and carrier loop prevention. Mark protocol limitations honestly.
 - On an isolated Windows test machine, compare selected-game exit and unrelated-app behavior with Clash absent, open but inactive, system proxy active, TUN active, and Clash mode changes mid-session. Compare proxy settings, routes, DNS, and third-party service state before/after. Add relevant anti-cheat compatibility checks; no DLL injection or compatibility claim by inference.
 - Test disconnect, app exit, engine/helper crash, queue saturation, sleep/resume, network change, repeated start/stop, shutdown, failed updates, and installed-app upgrades. Stop only owned components and retain the explicit updater cleanup/error path.
-- Until those pass, the accelerator preview stays separate and disconnected. Do not tag or publish it as an installable accelerator update. This is a prototype milestone, not an exception that allows a completed installed-app iteration to stop at a source-only push.
+- Until those pass, do not ship a new interception backend or claim verified simultaneous Clash TUN operation. The first requested installable library release uses the existing engine, native conflict guard and clear routing limitations.
 - When the native iteration is complete, increment to an unused version, run the full required checks, publish the signed GitHub Release with the established updater key, verify it, and update this PC's separate `/proxyking/` LAN mirror. Preserve the HappyCheats server/task/configuration/files/firewall scope; report offline peers honestly.

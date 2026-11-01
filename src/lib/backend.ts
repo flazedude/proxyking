@@ -6,6 +6,7 @@ import type {
   RuntimeStatus,
   SavedState,
   RunningProcess,
+  InstalledGame,
 } from "../types";
 
 export const isDesktop = isTauri();
@@ -36,6 +37,10 @@ export const defaultStatus: RuntimeStatus = {
 let previewState = structuredClone(defaultState);
 
 export const backend = {
+  routingConflict: (): Promise<boolean> =>
+    isDesktop ? invoke("routing_conflict") : Promise.resolve(false),
+  games: (): Promise<InstalledGame[]> =>
+    isDesktop ? invoke("scan_games") : Promise.resolve([]),
   load: async (): Promise<SavedState> => {
     const data = isDesktop
       ? await invoke<SavedState>("load_state")

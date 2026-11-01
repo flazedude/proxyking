@@ -38,6 +38,8 @@ import {
   validateExecutable,
 } from "./library";
 import type { LauncherId, LibraryEntry, Selection } from "./library";
+import { GameArtwork } from "../components/GameArtwork";
+import { launcherLogo } from "../game-art";
 
 type Page = "play" | "library" | "servers" | "activity" | "settings";
 type Filter = "games" | "launchers" | "processes";
@@ -869,9 +871,11 @@ export function AcceleratorPreview() {
                           key={launcher.id}
                           onClick={() => setScope(launcher.id)}
                         >
-                          <span className="pk-launcher-letter">
-                            {launcher.short}
-                          </span>
+                          <img
+                            className="pk-brand-logo"
+                            src={launcherLogo(launcher.id)}
+                            alt={`${launcher.name} logo`}
+                          />
                           <strong>{launcher.name}</strong>
                           <small>
                             {isSelected(`launcher:${launcher.id}`)
@@ -910,7 +914,10 @@ export function AcceleratorPreview() {
                               <span className="pk-cover-label">
                                 {game.custom ? "CUSTOM APP" : game.category}
                               </span>
-                              <span className="pk-game-mark">{game.mark}</span>
+                              <GameArtwork
+                                title={game.title}
+                                steamId={game.steamId}
+                              />
                               <span className="pk-cover-lines" />
                               <span
                                 className={`pk-card-check ${isSelected(game.id) ? "checked" : ""}`}

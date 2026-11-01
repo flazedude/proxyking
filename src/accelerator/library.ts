@@ -60,12 +60,14 @@ export interface LibraryEntry {
   tone: string;
   path: string;
   custom?: boolean;
+  steamId?: number;
 }
 
 // Deliberately fictional install paths. The browser never enumerates installed apps.
 export const sampleGames: LibraryEntry[] = [
   {
     id: "cs2",
+    steamId: 730,
     title: "Counter-Strike 2",
     launcher: "steam",
     category: "TACTICAL SHOOTER",
@@ -75,6 +77,7 @@ export const sampleGames: LibraryEntry[] = [
   },
   {
     id: "diablo",
+    steamId: 2344520,
     title: "Diablo IV",
     launcher: "battlenet",
     category: "ACTION RPG",
@@ -102,6 +105,7 @@ export const sampleGames: LibraryEntry[] = [
   },
   {
     id: "apex",
+    steamId: 1172470,
     title: "Apex Legends",
     launcher: "steam",
     category: "BATTLE ROYALE",

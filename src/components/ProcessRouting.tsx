@@ -153,7 +153,7 @@ function ProcessPicker({
                       next.set(keyFor(process.path), {
                         name: process.name,
                         path: process.path,
-                        includeChildren: true,
+                        includeChildren: false,
                       });
                     else next.delete(keyFor(process.path));
                     return next;
@@ -179,8 +179,7 @@ function ProcessPicker({
         )}
       </div>
       <p className="muted small">
-        Children are included by default. Protected processes may be
-        unavailable.
+        Child processes are opt-in. Protected processes may be unavailable.
       </p>
       <div className="dialog-actions">
         <span className="selection-total">

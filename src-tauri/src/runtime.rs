@@ -147,6 +147,7 @@ impl Service {
             shutting_down: AtomicBool::new(false),
         });
         let weak = Arc::downgrade(&service);
+        let mut last_conflict_check = Instant::now();
         thread::spawn(move || loop {
             thread::sleep(Duration::from_millis(250));
             let Some(service) = weak.upgrade() else {
@@ -156,6 +157,25 @@ impl Service {
                 break;
             }
             if let Ok(mut runtime) = service.inner.lock() {
+                if runtime.child.is_some()
+                    && runtime.status.routing_mode != "local"
+                    && last_conflict_check.elapsed() >= Duration::from_secs(2)
+                {
+                    last_conflict_check = Instant::now();
+                    let check = platform::routing_conflict();
+                    if !matches!(check, Ok(false)) {
+                        let cleanup = runtime.stop();
+                        let mut message = "ProxyKing disconnected its own engine because Clash started or proxy coexistence could not be checked. Clash settings were not changed.".to_string();
+                        if let Err(error) = cleanup {
+                            message.push(' ');
+                            message.push_str(&error);
+                        }
+                        runtime.status.state = "error".into();
+                        runtime.status.error = Some(message.clone());
+                        runtime.log("error", message);
+                        continue;
+                    }
+                }
                 let exited = runtime
                     .child
                     .as_mut()
@@ -325,6 +345,9 @@ impl Service {
             return Err("Connections are currently available on Windows only.".into());
         }
         let process_mode = settings.effective_routing_mode() == "processes";
+        if settings.effective_routing_mode() != "local" && platform::routing_conflict()? {
+            return Err("Clash Verge or a Clash engine is running. This version cannot safely run a second selected-app tunnel or change Windows proxy settings alongside it. Disconnect and exit Clash yourself before connecting, or use Local proxy mode. ProxyKing has not changed Clash or Windows networking.".into());
+        }
         if process_mode && !platform::is_elevated() {
             return Err("Selected-app routing needs administrator access to create its Windows tunnel. Use Restart as administrator, then connect again.".into());
         }

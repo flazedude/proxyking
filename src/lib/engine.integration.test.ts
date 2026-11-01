@@ -5,6 +5,7 @@ import { platform } from "node:process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createManualProfile, importProfiles } from "./profiles";
+import { importClashProfiles } from "./clash-profiles";
 import type { Profile } from "../types";
 
 const enginePath = fileURLToPath(
@@ -134,6 +135,65 @@ const fixtures = [
 describe.skipIf(!engineAvailable)(
   "real sing-box configuration compatibility (requires npm run setup:engine on Windows)",
   () => {
+    it("accepts supported imported Clash servers without enabling imported runtime controls", () => {
+      const nodes = [
+        {
+          name: "SS fixture",
+          type: "ss",
+          server: "proxy.example",
+          port: 443,
+          cipher: "aes-128-gcm",
+          password: "test-only-password",
+          udp: false,
+        },
+        {
+          name: "VLESS fixture",
+          type: "vless",
+          server: "proxy.example",
+          port: 443,
+          uuid,
+          tls: true,
+          servername: "tls.example",
+          network: "ws",
+          "ws-opts": { path: "/game", headers: { Host: "ws.example" } },
+        },
+        {
+          name: "Trojan fixture",
+          type: "trojan",
+          server: "proxy.example",
+          port: 443,
+          password: "test-only-password",
+          sni: "tls.example",
+        },
+        {
+          name: "HTTP fixture",
+          type: "http",
+          server: "proxy.example",
+          port: 8080,
+          username: "fixture",
+          password: "test-only-password",
+        },
+        {
+          name: "SOCKS fixture",
+          type: "socks5",
+          server: "proxy.example",
+          port: 1080,
+          username: "fixture",
+          password: "test-only-password",
+        },
+      ];
+      const imported = importClashProfiles(
+        JSON.stringify({
+          proxies: nodes,
+          tun: { enable: true },
+          "mixed-port": 7897,
+        }),
+      );
+      expect(imported.profiles).toHaveLength(5);
+      expect(imported.skipped).toBe(0);
+      for (const profile of imported.profiles)
+        expect(check(configFor(profile)).status).toBe(0);
+    });
     it.each(fixtures)("accepts %s", (_name, link) => {
       const result = check(configFor(link));
       expect(

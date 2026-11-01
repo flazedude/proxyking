@@ -1,5 +1,17 @@
 # Windows preview validation
 
+## Version 0.4.0 — first installed game accelerator interface
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 225 tests passed. This includes supported Clash server conversion checked against the actual pinned engine, unsupported-option/provider reporting, preservation of per-executable child preferences, and inert browser discovery/coexistence adapters. Both production and standalone concept builds, version consistency, formatting and diff checks passed.
+- Native: 34 tests passed with the routing fixture separately invoked by its integration tests and the live-PC scan separately invoked for QA. Locked tests and strict all-target Clippy used the release profile to avoid writing over the open isolated validation debug build; an initial default-profile invocation encountered that Windows file lock. Rust formatting passed. Discovery fixtures cover verified Steam/Epic installations, stale manifests, DLC entries, unsafe relative paths and support-tool filtering. Clash-name matching has exact-name/case regression coverage.
+- The initial read-only scan found 51 game entries and five launcher entries on this PC. After preserving the registry's preferred edition-specific executable when ordering candidates, a repeat found 52 game entries (including a distinct WoW Classic entry), all yielding local icons, plus five launchers. The native validation instance used a separate application identifier/data directory, opened disconnected with no saved profiles/selections, displayed the initial real catalog and store posters, detected the running Clash instance and disabled acceleration, and opened the exact-executable picker with child inclusion off. Native UI automation was then stopped with Escape by the user; no further UI automation was performed. Selection saving, updater clicks, installation and live routing were not exercised through that instance. The existing installed app was left alone.
+- The installed UI now uses the existing encrypted storage, engine supervision, single-instance identity, activity and updater cleanup contract. No new interception driver is included. Recognized Clash GUI/engine names block non-local connect before engine/network changes; active non-local sessions check every two seconds and stop only the owned engine on detection/check failure. This is conservative conflict avoidance, not verified simultaneous TUN operation. Local mode remains manual and follows underlying network routes.
+- Posters are remote store/publisher assets with local executable-icon fallback; bundled Simple Icons brand glyphs have pinned provenance and retained CC0 text. The CSP permits only selected image hosts, with no expansion of IPC/network command privileges. Publisher image availability and unidentified game/launcher installations remain limitations.
+
+No Windows proxy, route, DNS, firewall, service, Clash configuration or real game traffic was changed for validation. Elevated live TUN capture, simultaneous Clash TUN use, in-game latency/UDP delivery, anti-cheat compatibility and an installed upgrade remain unverified. Release publication and LAN verification are recorded after the signed artifacts have been checked.
+
 ## Game accelerator prototype — no installed-app release
 
 Checked on Windows x64 on 2026-11-01:

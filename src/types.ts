@@ -9,6 +9,16 @@ export interface ProcessTarget {
   includeChildren: boolean;
 }
 
+export interface InstalledGame {
+  id: string;
+  title: string;
+  launcher: string;
+  kind: "game" | "launcher";
+  steamId: number | null;
+  executables: string[];
+  icon: string | null;
+}
+
 export interface RunningProcess extends Omit<ProcessTarget, "includeChildren"> {
   pid: number;
 }

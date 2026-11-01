@@ -55,7 +55,7 @@ function shortString(value: unknown, max = 256): value is string {
  * document. It does not fetch URLs, open provider paths, execute scripts, retain
  * engine configs or claim the current native engine can run these servers.
  */
-export function inspectClashConfig(input: string): ImportReport {
+export function readClashDocument(input: string): Record<string, unknown> {
   if (new TextEncoder().encode(input).byteLength > MAX_CONFIG_BYTES) {
     throw new Error("Choose a YAML configuration smaller than 512 KB.");
   }
@@ -108,6 +108,11 @@ export function inspectClashConfig(input: string): ImportReport {
     throw new Error("Could not read this YAML configuration.");
   }
   if (!object(config)) throw new Error("Expected a Clash YAML configuration.");
+  return config;
+}
+
+export function inspectClashConfig(input: string): ImportReport {
+  const config = readClashDocument(input);
   const report: ImportReport = {
     servers: [],
     groups: 0,
