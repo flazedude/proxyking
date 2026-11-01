@@ -4,6 +4,8 @@ ProxyKing starts as a Windows desktop client for user-supplied Shadowsocks, VLES
 
 This document records the design and platform roadmap. Later-platform work described here is not implemented support.
 
+The next game accelerator direction has a separate, inert browser prototype and an open-source process-routing feasibility review in [GAME_ACCELERATOR.md](GAME_ACCELERATOR.md). The installed engine and routing described below are unchanged. In particular, existing selected-process TUN routing is not a verified solution for simultaneous operation with Clash Verge's TUN.
+
 ## Windows first release
 
 Version 0.3.4 uses an XP-style split view: profiles on the left, Connection/Processes/Activity/Settings tabs on the right, and a shared connection/update toolbar. Custom Tauri title-bar controls use narrowly scoped window permissions; closing still goes through the existing native exit/engine cleanup path. Browser preview window and networking controls remain inert. Interface text uses short functional labels without slogans.

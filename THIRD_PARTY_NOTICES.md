@@ -20,6 +20,8 @@ Running the engine as a separate process is an architectural choice, not an auto
 
 ## Application dependencies
 
+The separate game accelerator browser prototype uses `yaml` 2.9.1 (development dependency), copyright Eemeli Aro, under the ISC license. Its exact license is included in the pinned npm package at `node_modules/yaml/LICENSE` and in the [upstream repository](https://github.com/eemeli/yaml/blob/v2.9.1/LICENSE). It is bundled by `npm run build:accelerator`, which copies its license to `dist-accelerator/yaml-LICENSE.txt`, but is not imported by the installed application's production entry point. Any distributed prototype artifact must preserve this notice and the package's license text. Routing candidates described in the design review are research only; their code and binaries are not included.
+
 Tauri, React, TypeScript, Vite, Rust crates, UI assets, and their transitive dependencies each retain their own licenses. Record exact versions from the generated lockfiles and include the notices required by the components actually shipped. Development tooling that is not part of the distributed artifact should be identified separately from runtime components.
 
 For every public release, archive the engine artifact identity and checksum, source/build provenance, complete license texts, and a generated dependency inventory alongside the installer. Update this record when the engine or integration changes.

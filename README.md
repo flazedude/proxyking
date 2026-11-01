@@ -4,6 +4,10 @@ A Windows-first desktop client for your own **Shadowsocks, VLESS, Trojan, HTTP/H
 
 Source: [flazedude/proxyking](https://github.com/flazedude/proxyking). Download published installers from [GitHub Releases](https://github.com/flazedude/proxyking/releases). For development on another computer, start with [AGENTS.md](AGENTS.md).
 
+## Game accelerator design preview
+
+The next direction is a dark game library with separate game, launcher, and executable selection. Run `npm run dev:accelerator` and open [the browser prototype](http://127.0.0.1:1421/accelerator.html). It uses sample games and in-memory server labels; its Clash YAML import does not retain credentials, fetch providers, or connect. It does not change the installed application. See [the prototype and open-source routing feasibility review](docs/GAME_ACCELERATOR.md) for what works, remaining native work, and the Clash coexistence release gates.
+
 On the home LAN, download [ProxyKing setup from JACK-PC](http://192.168.2.76:17845/proxyking/ProxyKing-Setup.exe). GPD-PC uses the same `/proxyking/` path at `192.168.2.59:17845` once its shared server and mirror are set up. GitHub remains available when the LAN hosts are off.
 
 ## Open the Windows app

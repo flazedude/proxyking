@@ -1,5 +1,18 @@
 # Windows preview validation
 
+## Game accelerator prototype — no installed-app release
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 218 tests passed, including 41 new tests for explicit executable scope, case/separator path deduplication, path validation, safe metadata-only Clash YAML handling, secret-safe errors, external/inline providers, duplicate labels, YAML aliases/tags/complex keys, and byte/nesting/node/server limits. An initial full run while native tests were also starting engines hit the existing five-second Shadowsocks configuration-test timeout; two subsequent full frontend runs passed. No timeout or production-engine code was changed.
+- Normal production build and the separately configured accelerator build passed. The normal output contains only the existing app entry and unchanged app asset hashes; the preview is emitted separately under `dist-accelerator`, including the pinned YAML package's ISC license. CI now checks both builds. Version consistency remains 0.3.5 because this milestone does not change or publish installed functionality. Frontend formatting and `git diff --check` passed.
+- Native regression checks passed: 31 tests, one separately invoked routing fixture marked ignored by the harness, Rust formatting, and strict locked Clippy. Native source, the updater configuration/key, installed-app data, release feeds, and LAN mirrors were not changed. Routing tests use existing loopback fixtures without TUN capture.
+- Browser inspection verified game selection, Battle.net specific-game scope without implicitly selecting the launcher, custom executable entry and exact-path review, keyboard tab navigation, launcher search, server/Activity/Settings views, the inert logging switch, Clash metadata inspection, unresolved-provider warnings, and adding labels without connecting. Reload resets selections, custom entries, imported labels, and preferences. The acceleration control stays disabled.
+- Responsive layouts were visually inspected at 1440 and 320 pixels and checked for horizontal overflow at 1440, 850, and 320 pixels. A narrow hero layout was corrected. Desktop evidence is kept outside the repository in the chat's visualization artifacts. The covers use original CSS geometry; the sample library is not installed-game detection.
+- Routing feasibility consists of upstream documentation and read-only source inspection, with ProxyBridge pinned to `2eb007671c82c972821e8e9bd404bc82499ebb4f`. No candidate driver or proxy helper was built, run, installed, or loaded. The owner chose open-source-only components. See [GAME_ACCELERATOR.md](GAME_ACCELERATOR.md) for findings and the required qualification gates.
+
+This milestone is an interactive design prototype, not a working accelerator update. YAML import retains labels only; native game discovery, encrypted full-profile import, a new engine adapter, live executable routing, anti-cheat compatibility, real game latency/UDP behavior, and simultaneous Clash TUN operation remain unimplemented or unverified. No Windows proxy, route, DNS, firewall, service, or Clash configuration was changed. There is no new signed installer or release to mirror yet.
+
 ## Version 0.3.5 — activity on reused connections
 
 Checked on Windows x64 on 2026-11-01:

@@ -25,6 +25,7 @@ jobs:
       - run: npm run setup:engine
       - run: npm test
       - run: npm run build
+      - run: npm run build:accelerator
       - run: npm run format:check
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
