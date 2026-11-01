@@ -2,6 +2,8 @@
 
 Status on 2026-11-01: v0.4.0 implements the first installed game library, real artwork, read-only game discovery, exact executable scopes and supported server-only Clash import using the existing engine. The owner chose **open-source-only** routing components, accepting additional driver/signing work. Commercial SDKs are excluded from the implementation path.
 
+v0.4.1 adds explicit one-time HTTPS YAML URL download and review in the installed app. A pasted `.yaml` URL no longer goes through direct-proxy hostname/port validation. The URL stays transient; automatic refresh and external provider fetching remain unimplemented. The browser concept below stays inert.
+
 The first installable version deliberately retains the existing routing backend with a conservative native Clash-process guard. It blocks new non-local connections while Clash is detected and monitors active non-local sessions, stopping only ProxyKing's engine when needed. It does not claim the future backend's simultaneous-tunnel guarantees. Release gates below concerning a new interception driver remain applicable to that later backend; they do not prohibit publishing the requested library/artwork/discovery iteration with documented existing-engine limits.
 
 ## Original standalone prototype

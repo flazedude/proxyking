@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { Dialog } from "./Dialog";
-import { importProfiles } from "../lib/profiles";
-import { importClashProfiles } from "../lib/clash-profiles";
+import { backend } from "../lib/backend";
+import { inspectServerImport, isYamlDownloadUrl } from "../lib/server-import";
+import type { ImportSource } from "../lib/server-import";
 import type { ClashProfiles } from "../lib/clash-profiles";
 import type { Profile } from "../types";
 
@@ -14,10 +15,12 @@ export function ServerImportDialog({
   save: (profiles: Profile[]) => Promise<void>;
 }) {
   const [text, setText] = useState("");
+  const [source, setSource] = useState<ImportSource>("auto");
   const [report, setReport] = useState<ClashProfiles | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
+  const downloading = source === "url" || isYamlDownloadUrl(text);
   return (
     <Dialog
       title="Import servers"
@@ -27,8 +30,9 @@ export function ServerImportDialog({
       wide
     >
       <p className="pk-muted">
-        Paste share links or your Clash YAML. Supported servers are copied into
-        ProxyKing; Clash settings and files stay untouched.
+        Paste share links, Clash YAML, or its HTTPS download URL. Supported
+        servers are copied into ProxyKing; Clash settings and files stay
+        untouched.
       </p>
       <form
         onSubmit={async (event) => {
@@ -36,10 +40,15 @@ export function ServerImportDialog({
           setError("");
           setBusy(true);
           try {
-            if (/^\s*(ss|vless|trojan|https?|socks5):\/\//i.test(text)) {
-              await save(importProfiles(text));
+            const result = await inspectServerImport(
+              text,
+              source,
+              backend.fetchYaml,
+            );
+            if (result.kind === "links") {
+              await save(result.profiles);
               close();
-            } else setReport(importClashProfiles(text));
+            } else setReport(result.report);
           } catch (err) {
             setError(
               err instanceof Error
@@ -51,8 +60,32 @@ export function ServerImportDialog({
           }
         }}
       >
+        <div
+          className="pk-tabs pk-import-sources"
+          role="group"
+          aria-label="Import source"
+        >
+          {(["auto", "url"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={source === value ? "active" : ""}
+              aria-pressed={source === value}
+              disabled={busy}
+              onClick={() => {
+                setSource(value);
+                setReport(null);
+                setError("");
+              }}
+            >
+              {value === "auto" ? "Paste / file" : "YAML URL"}
+            </button>
+          ))}
+        </div>
         <label className="pk-field">
-          Configuration or share links
+          {source === "url"
+            ? "HTTPS YAML download URL"
+            : "Configuration, share links, or YAML URL"}
           <textarea
             value={text}
             onChange={(event) => {
@@ -60,14 +93,20 @@ export function ServerImportDialog({
               setReport(null);
               setError("");
             }}
-            rows={9}
-            maxLength={512 * 1024}
+            rows={source === "url" ? 3 : 9}
+            maxLength={source === "url" ? 8192 : 512 * 1024}
             autoComplete="off"
             spellCheck={false}
             disabled={busy}
             required
+            aria-describedby="import-source-help"
           />
         </label>
+        <p id="import-source-help" className="pk-small pk-muted">
+          {downloading
+            ? "Download this URL once, then review supported servers before importing. HTTPS is required. The URL is not saved or refreshed automatically."
+            : "Paste the YAML contents or choose a local file. Download URLs are detected automatically; direct HTTP/SOCKS proxy links need an explicit port."}
+        </p>
         <button
           type="button"
           className="pk-button pk-file-button"
@@ -92,6 +131,7 @@ export function ServerImportDialog({
             setBusy(true);
             try {
               setText(await chosen.text());
+              setSource("auto");
               setError("");
             } catch {
               setError("Could not read this file.");
@@ -125,7 +165,9 @@ export function ServerImportDialog({
           </p>
         )}
         <p className="pk-small pk-muted">
-          Saved with Windows account encryption. No subscription URL is fetched.
+          Saved servers use Windows account encryption. Downloads use your
+          current network. External providers and imported routing settings are
+          never applied.
         </p>
         <div className="pk-modal-actions">
           <button
@@ -164,7 +206,13 @@ export function ServerImportDialog({
               className="pk-button pk-primary"
               disabled={busy || !text.trim()}
             >
-              Inspect / import
+              {busy
+                ? downloading
+                  ? "Downloading…"
+                  : "Inspecting…"
+                : downloading
+                  ? "Download & inspect"
+                  : "Inspect / import"}
             </button>
           )}
         </div>

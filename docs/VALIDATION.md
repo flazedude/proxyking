@@ -1,5 +1,16 @@
 # Windows preview validation
 
+## Version 0.4.1 — import YAML download URLs
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 243 tests passed. New coverage reproduces the reported `.yaml` URL misclassification, checks direct HTTP/HTTPS/SOCKS links remain imports rather than downloads, exercises download-to-server-review, rejects recursively downloaded URLs, leaves external providers unresolved, and verifies the browser adapter neither fetches nor invokes native code.
+- Native: 38 tests passed, with two helper/live-scan tests ignored by the default harness as before. Loopback HTTP fixtures exercise the production body reader, UTF-8 YAML, declared and streamed oversize bodies, truncated bodies, unsuccessful status, compressed-content rejection, empty downloads, referrer exclusion and HTTPS-only redirect rejection before contacting the target. Production URL validation rejects HTTP, file URLs, userinfo, fragments, control characters and excessive lengths without echoing input. Loopback transport tests bypass system proxies and do not use live provider credentials or create a TUN adapter.
+- The download is explicit and one-time; downloaded content uses the existing supported-server review before saving. The URL is neither stored nor auto-refreshed. Imported providers, scripts, DNS, TUN, ports, controllers and rules remain excluded. Existing routing, Clash guard, DPAPI and updater identity/cleanup are unchanged. Browser downloads remain disabled.
+- Both production builds, version consistency, frontend/Rust formatting, strict locked all-target Clippy and diff checks passed. Native locked checks used the release profile, keeping the open isolated debug validation build untouched.
+
+No Windows proxy, route, DNS, firewall or Clash settings were changed. The user's actual URL was not supplied or fetched. Live provider downloads, native UI interaction, installation and an installed upgrade have not been exercised for this fix. Release verification is recorded after the signed artifacts have been checked.
+
 ## Version 0.4.0 — first installed game accelerator interface
 
 Checked on Windows x64 on 2026-11-01:

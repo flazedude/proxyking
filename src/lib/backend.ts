@@ -37,6 +37,14 @@ export const defaultStatus: RuntimeStatus = {
 let previewState = structuredClone(defaultState);
 
 export const backend = {
+  fetchYaml: (url: string): Promise<string> =>
+    isDesktop
+      ? invoke("fetch_yaml_subscription", { url })
+      : Promise.reject(
+          new Error(
+            "YAML URL downloads are available in the Windows app. Choose a local file to preview it here.",
+          ),
+        ),
   routingConflict: (): Promise<boolean> =>
     isDesktop ? invoke("routing_conflict") : Promise.resolve(false),
   games: (): Promise<InstalledGame[]> =>
