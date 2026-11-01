@@ -4,13 +4,15 @@ A Windows game accelerator for your own **Shadowsocks, VLESS, Trojan, HTTP/HTTPS
 
 Source: [flazedude/proxyking](https://github.com/flazedude/proxyking). Download published installers from [GitHub Releases](https://github.com/flazedude/proxyking/releases). For development on another computer, start with [AGENTS.md](AGENTS.md).
 
-## Game accelerator v0.4.0
+## Game accelerator v0.4.1
 
 The installed app now uses the dark game library. It scans Steam library manifests, Epic installation manifests, and Windows registrations for Battle.net, Ubisoft, Riot, EA and GOG. Only entries with existing executable candidates appear; discovery does not launch or select games automatically. Choose each game's exact `.exe` files in its scope dialog. Add other apps from **Library → Processes**, or **Add .exe**. Launcher child inclusion is opt-in; existing saved choices are preserved.
 
 Cards show store/publisher posters where available, falling back to locally extracted executable icons or bundled brand logos. Artwork loads from a small image-host allowlist without a referrer; publisher availability and network access can affect covers. No publisher artwork is bundled. The native scan is bounded to known installation roots, skips reparse points and common support tools, and never searches personal document folders. Manifest/registry discovery can miss portable games or unregistered launchers; add those executables manually.
 
-**Import YAML / links** accepts self-contained Clash YAML and supported share links. The review shows supported server count, rejected entries and unresolved providers. This version imports supported Shadowsocks, VLESS, Trojan, HTTP/HTTPS and SOCKS5 node options; VMess, Hysteria/TUIC, plugins, external provider fetching, scripts and group execution are not implemented. Confirm importing the supported nodes; their credentials use the existing account-scoped DPAPI store. Imported TUN, DNS, proxy ports, controllers and routing rules are never applied.
+**Import YAML / links** accepts self-contained Clash YAML, an HTTPS YAML download URL, and supported share links. Paste the URL and choose **Download & inspect**, or use **YAML URL** for an address that also resembles a direct proxy. The desktop app downloads the YAML once and shows the supported server count, rejected entries and unresolved providers before you confirm import. URLs are not saved or refreshed automatically. Downloads require HTTPS, valid certificates, UTF-8 and an uncompressed body of at most 512 KiB; redirects remain HTTPS and are limited to five. The current network and normal client proxy discovery apply; ProxyKing does not start a connection or change Windows settings to download. Browser previews never download URLs; use a local file there.
+
+This version imports supported Shadowsocks, VLESS, Trojan, HTTP/HTTPS and SOCKS5 node options; VMess, Hysteria/TUIC, plugins, external provider fetching, scripts and group execution are not implemented. Confirm importing the supported nodes; their credentials use the existing account-scoped DPAPI store. Imported TUN, DNS, proxy ports, controllers and routing rules are never applied.
 
 **Clash coexistence:** this first version retains the existing TUN routing backend. While a recognized Clash GUI/engine is running, native connect blocks selected-process and Windows system-proxy modes before starting the engine or changing networking. If detected during such a session, ProxyKing stops its own engine and restores its own settings. Detection polls every two seconds and is not strict simultaneous-tunnel isolation. ProxyKing does not stop Clash or edit its configuration. Local proxy mode remains available but follows the underlying Windows/Clash network route and requires manual per-app configuration. The future open-source process-routing replacement remains under evaluation; see [the design and routing review](docs/GAME_ACCELERATOR.md).
 
@@ -96,7 +98,7 @@ Force-killing ProxyKing or restarting Windows prevents normal cleanup. Its engin
 
 Version 0.3.2 checks both LAN hosts and GitHub Releases at startup and every six hours, with a manual check button. It selects the newest available version and prefers matching LAN downloads. Installation verifies the signature and signed version, disconnects the proxy, and restarts the installed app. Versions 0.3.0–0.3.1 receive this first update through GitHub; older builds need one manual installation. See [updates and release instructions](docs/UPDATES.md).
 
-Subscription URL fetching, QR scanning, traffic accounting, auto-connect, tray mode, and a kill switch are future features. No remote telemetry or account service is implemented.
+Automatic subscription refresh, external provider fetching, QR scanning, traffic accounting, auto-connect, tray mode, and a kill switch are future features. No remote telemetry or account service is implemented.
 
 The shared interface and native service boundaries are intended for macOS, Android, and iOS. Those platforms are **not implemented yet**. Android needs a native `VpnService`; iOS needs a Network Extension and a macOS/Xcode build environment. See the [architecture and platform roadmap](docs/ARCHITECTURE.md).
 

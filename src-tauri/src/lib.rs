@@ -9,6 +9,7 @@ mod proxy;
 mod routing_tests;
 mod runtime;
 mod storage;
+mod subscriptions;
 mod updates;
 mod usage;
 
@@ -16,7 +17,7 @@ mod usage;
 // Common Controls activation manifest, which Tauri embeds only in app binaries.
 #[cfg(not(test))]
 mod application {
-    use super::{config, games, models, platform, runtime, updates};
+    use super::{config, games, models, platform, runtime, subscriptions, updates};
     use models::{AppSettings, LogEntry, Profile, RunningProcess, RuntimeStatus, SavedState};
     use runtime::Service;
     use std::{
@@ -125,6 +126,13 @@ mod application {
     }
 
     #[tauri::command]
+    async fn fetch_yaml_subscription(url: String) -> Result<String, String> {
+        tauri::async_runtime::spawn_blocking(move || subscriptions::fetch_yaml(&url))
+            .await
+            .map_err(|_| "The YAML download task failed.")?
+    }
+
+    #[tauri::command]
     async fn list_processes(
         service: State<'_, Arc<Service>>,
     ) -> Result<Vec<RunningProcess>, String> {
@@ -199,6 +207,7 @@ mod application {
                 clear_logs,
                 list_processes,
                 scan_games,
+                fetch_yaml_subscription,
                 routing_conflict,
                 restart_elevated,
                 updates::native::check_updates,

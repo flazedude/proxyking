@@ -4,7 +4,7 @@ Version 0.4.0 adds installed-game cards and explicit executable selection in Lib
 
 ProxyKing can route selected Windows applications through a saved proxy server. Add the server manually or import a supported share link, open **Processes**, select applications from the running-process picker, and enable **Use selected processes** if another mode is active. This mode needs administrator access to create the virtual network adapter. Use **Restart as administrator**, approve Windows' UAC prompt yourself, then connect from Overview.
 
-The selection is an executable path, not a process ID. All instances of that executable match, including instances started later. Enable **Include child processes** on a launcher such as Steam or Battle.net to discover its games and helpers automatically. New selections enable this by default; existing selections keep it off until you opt in. After changing the selection or connecting, restart the target app or make a new connection; existing connections are not migrated reliably.
+The selection is an executable path, not a process ID. All instances of that executable match, including instances started later. Enable **Include child processes** on a launcher such as Steam or Battle.net to discover its games and helpers automatically. New selections leave this off until you opt in; existing saved preferences are preserved. After changing the selection or connecting, restart the target app or make a new connection; existing connections are not migrated reliably.
 
 ## Launcher child processes
 

@@ -255,6 +255,10 @@
 .pk-native .pk-file-button {
   margin-top: 12px;
 }
+.pk-native .pk-import-sources {
+  margin: 16px 0;
+  width: fit-content;
+}
 .pk-native .pk-card-select:disabled {
   opacity: 0.8;
 }
