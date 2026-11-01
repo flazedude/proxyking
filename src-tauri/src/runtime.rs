@@ -701,16 +701,10 @@ mod tests {
             eprintln!("Engine integration test skipped: run the engine setup script first.");
             return;
         }
-        let port = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port();
-        let upstream_port = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port();
+        let client_reservation = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = client_reservation.local_addr().unwrap().port();
+        let upstream_reservation = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let upstream_port = upstream_reservation.local_addr().unwrap().port();
         let origin = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let origin_port = origin.local_addr().unwrap().port();
         origin.set_nonblocking(true).unwrap();
@@ -719,6 +713,7 @@ mod tests {
             "inbounds":[{"type":"shadowsocks","listen":"127.0.0.1","listen_port":upstream_port,"method":"aes-128-gcm","password":"test-only-password"}],
             "outbounds":[{"type":"direct","tag":"direct"}],"route":{"final":"direct"}
         });
+        drop(upstream_reservation);
         let mut upstream = hidden_command(&engine)
             .args(["run", "-c", "stdin"])
             .stdin(Stdio::piped())
@@ -792,6 +787,7 @@ mod tests {
         let loaded = service.load().unwrap();
         assert_eq!(loaded.profiles[0].outbound, profile.outbound);
         assert_eq!(loaded.selected_profile_id, saved.selected_profile_id);
+        drop(client_reservation);
         assert_eq!(
             service
                 .connect(profile.clone(), settings.clone())
@@ -816,13 +812,22 @@ mod tests {
                     stream
                         .set_read_timeout(Some(Duration::from_secs(5)))
                         .unwrap();
-                    let mut request = [0; 1024];
-                    let length = stream.read(&mut request).unwrap();
-                    assert!(String::from_utf8_lossy(&request[..length])
-                        .starts_with("GET /proxyking-test "));
-                    let payload = "verified encrypted ProxyKing forwarding";
-                    let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}", payload.len());
-                    stream.write_all(response.as_bytes()).unwrap();
+                    for index in 0..3 {
+                        let mut request = Vec::new();
+                        while !request.ends_with(b"\r\n\r\n") {
+                            let mut byte = [0];
+                            stream.read_exact(&mut byte).unwrap();
+                            request.push(byte[0]);
+                            assert!(request.len() < 1024);
+                        }
+                        assert!(
+                            String::from_utf8_lossy(&request).starts_with("GET /proxyking-test ")
+                        );
+                        let payload = "verified encrypted ProxyKing forwarding";
+                        let connection = if index == 2 { "close" } else { "keep-alive" };
+                        let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: {connection}\r\n\r\n{payload}", payload.len());
+                        stream.write_all(response.as_bytes()).unwrap();
+                    }
                     break;
                 }
                 assert!(
@@ -881,6 +886,45 @@ mod tests {
         assert!(usage.message.contains("TCP · Proxy"));
         assert!(!usage.message.contains("test-only-password"));
         assert!(controller.unauthorized_for_test().is_err());
+        // Two HTTP requests reuse this exact SOCKS/TCP connection, as Steam does.
+        for burst in 1..=2 {
+            socket.write_all(b"GET /proxyking-test HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n").unwrap();
+            let payload = "verified encrypted ProxyKing forwarding";
+            let expected = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n{payload}",
+                payload.len()
+            );
+            let mut response = vec![0; expected.len()];
+            socket.read_exact(&mut response).unwrap();
+            assert_eq!(response, expected.as_bytes());
+            let deadline = Instant::now() + Duration::from_secs(4);
+            loop {
+                service
+                    .inner
+                    .lock()
+                    .unwrap()
+                    .usage
+                    .accept(generation, controller.snapshot());
+                let count = service
+                    .logs()
+                    .unwrap()
+                    .iter()
+                    .filter(|entry| {
+                        entry.level == "usage"
+                            && entry.message.contains("↑ ")
+                            && entry.message.contains("↓ ")
+                    })
+                    .count();
+                if count >= burst {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "traffic burst {burst} on a reused connection was not logged"
+                );
+                thread::sleep(Duration::from_millis(50));
+            }
+        }
         let mut no_selection = saved.clone();
         no_selection.settings.selected_processes.clear();
         service.save(&no_selection).unwrap();

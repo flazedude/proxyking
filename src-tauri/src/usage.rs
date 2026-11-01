@@ -7,13 +7,14 @@ use prost::Message;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     io::Read,
     net::{Ipv4Addr, TcpListener},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const MAX_BODY: u64 = 4 * 1024 * 1024;
+const TRAFFIC_INTERVAL: Duration = Duration::from_secs(2);
 
 fn path_key(path: &str) -> String {
     let path = config::normalize_process_path(path).to_lowercase();
@@ -134,6 +135,10 @@ struct WireConnection {
     domain: String,
     #[prost(int64, tag = "13")]
     closed_at: i64,
+    #[prost(int64, tag = "16")]
+    uploaded: i64,
+    #[prost(int64, tag = "17")]
+    downloaded: i64,
     #[prost(string, tag = "19")]
     outbound: String,
     #[prost(string, repeated, tag = "21")]
@@ -174,6 +179,8 @@ fn read_snapshot(mut response: impl Read) -> Result<Snapshot, ()> {
                 id: connection.id,
                 chains,
                 closed_at: connection.closed_at.max(0) as u64,
+                uploaded: connection.uploaded.max(0) as u64,
+                downloaded: connection.downloaded.max(0) as u64,
                 metadata: Metadata {
                     network: connection.network,
                     destination_ip,
@@ -238,6 +245,10 @@ struct Connection {
     chains: Vec<String>,
     #[serde(default)]
     closed_at: u64,
+    #[serde(default)]
+    uploaded: u64,
+    #[serde(default)]
+    downloaded: u64,
 }
 
 #[derive(Deserialize)]
@@ -312,12 +323,60 @@ impl Connection {
     }
 }
 
+struct Observed {
+    uploaded: u64,
+    downloaded: u64,
+    emitted_at: Instant,
+    reset_baseline: bool,
+}
+
+impl Observed {
+    fn new(connection: &Connection) -> Self {
+        Self {
+            uploaded: connection.uploaded,
+            downloaded: connection.downloaded,
+            emitted_at: Instant::now(),
+            reset_baseline: false,
+        }
+    }
+
+    fn traffic(&mut self, connection: &Connection) -> Option<(u64, u64)> {
+        if self.reset_baseline
+            || connection.uploaded < self.uploaded
+            || connection.downloaded < self.downloaded
+        {
+            *self = Self::new(connection);
+            return None;
+        }
+        let delta = (
+            connection.uploaded - self.uploaded,
+            connection.downloaded - self.downloaded,
+        );
+        if delta == (0, 0)
+            || (connection.closed_at == 0 && self.emitted_at.elapsed() < TRAFFIC_INTERVAL)
+        {
+            return None;
+        }
+        *self = Self::new(connection);
+        Some(delta)
+    }
+}
+
+fn bytes_label(bytes: u64) -> String {
+    for (unit, divisor) in [("GiB", 1_u64 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10)] {
+        if bytes >= divisor {
+            return format!("{:.1} {unit}", bytes as f64 / divisor as f64);
+        }
+    }
+    format!("{bytes} B")
+}
+
 #[derive(Default)]
 pub struct Usage {
     pub enabled: bool,
     controller: Option<Controller>,
     generation: u64,
-    seen: HashSet<String>,
+    seen: HashMap<String, Observed>,
     pub logs: VecDeque<LogEntry>,
     failed: bool,
     selected: HashSet<String>,
@@ -368,6 +427,9 @@ impl Usage {
         self.collect_since = now_ms();
         // Reject requests already in flight; keep observed active IDs to avoid duplicates.
         self.generation += 1;
+        for observed in self.seen.values_mut() {
+            observed.reset_baseline = true;
+        }
     }
 
     pub fn request(&self) -> Option<(u64, Controller)> {
@@ -399,13 +461,27 @@ impl Usage {
                     if connection.id.len() > 128 || !active.insert(connection.id.clone()) {
                         continue;
                     }
-                    if !self.seen.contains(&connection.id) {
-                        if let Some(message) = connection.message() {
-                            self.push("usage", message);
+                    let Some(message) = connection.message() else {
+                        continue;
+                    };
+                    if let Some(observed) = self.seen.get_mut(&connection.id) {
+                        if let Some((uploaded, downloaded)) = observed.traffic(&connection) {
+                            self.push(
+                                "usage",
+                                format!(
+                                    "{message} · ↑ {} · ↓ {}",
+                                    bytes_label(uploaded),
+                                    bytes_label(downloaded)
+                                ),
+                            );
                         }
+                    } else {
+                        self.seen
+                            .insert(connection.id.clone(), Observed::new(&connection));
+                        self.push("usage", message);
                     }
                 }
-                self.seen = active;
+                self.seen.retain(|id, _| active.contains(id));
             }
             Err(()) if !self.failed => {
                 self.failed = true;
@@ -441,6 +517,8 @@ mod tests {
                     destination: "[2001:db8::1]:443".into(),
                     domain: String::new(),
                     closed_at: 123,
+                    uploaded: 128,
+                    downloaded: 2048,
                     outbound: "proxy".into(),
                     chains: Vec::new(),
                     process: Some(WireProcess {
@@ -455,6 +533,8 @@ mod tests {
         frame.extend_from_slice(&body);
         let snapshot = read_snapshot(std::io::Cursor::new(frame)).unwrap();
         assert_eq!(snapshot.connections[0].closed_at, 123);
+        assert_eq!(snapshot.connections[0].uploaded, 128);
+        assert_eq!(snapshot.connections[0].downloaded, 2048);
         assert_eq!(
             snapshot.connections[0].message().unwrap(),
             "steam.exe → [2001:db8::1]:443 · TCP · Proxy (observed)"
@@ -532,6 +612,101 @@ mod tests {
             client: monitor_client().unwrap(),
         }));
         usage
+    }
+
+    #[test]
+    fn reused_connection_reports_accumulated_traffic_without_idle_duplicates() {
+        let mut usage = active();
+        let generation = usage.request().unwrap().0;
+        let sample = |uploaded, downloaded, closed_at| {
+            let mut connection = connection("reused", "proxy");
+            connection.uploaded = uploaded;
+            connection.downloaded = downloaded;
+            connection.closed_at = closed_at;
+            Ok(Snapshot {
+                connections: vec![connection],
+            })
+        };
+        usage.accept(generation, sample(100, 1000, 0));
+        usage.accept(generation, sample(164, 2024, 0));
+        assert_eq!(usage.logs.len(), 1, "bursts are throttled per connection");
+        usage.seen.get_mut("reused").unwrap().emitted_at = Instant::now() - TRAFFIC_INTERVAL;
+        usage.accept(generation, sample(228, 3048, 0));
+        assert_eq!(usage.logs.len(), 2);
+        assert!(usage.logs[1].message.ends_with("↑ 128 B · ↓ 2.0 KiB"));
+        usage.seen.get_mut("reused").unwrap().emitted_at = Instant::now() - TRAFFIC_INTERVAL;
+        usage.accept(generation, sample(228, 3048, 0));
+        assert_eq!(usage.logs.len(), 2, "idle sockets add nothing");
+        usage.accept(generation, sample(256, 4096, 0));
+        assert_eq!(
+            usage.logs.len(),
+            3,
+            "another burst on the same ID is visible"
+        );
+        usage.accept(generation, sample(300, 5000, now_ms()));
+        assert_eq!(
+            usage.logs.len(),
+            4,
+            "close flushes traffic inside the rate limit"
+        );
+        usage.accept(generation, sample(300, 5000, now_ms()));
+        assert_eq!(
+            usage.logs.len(),
+            4,
+            "closed history does not replay traffic"
+        );
+    }
+
+    #[test]
+    fn traffic_baselines_reset_after_clear_counter_reset_and_scope_changes() {
+        let mut usage = active();
+        let mut sample = connection("reused", "proxy");
+        sample.downloaded = 100;
+        let generation = usage.request().unwrap().0;
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![sample],
+            }),
+        );
+        usage.clear();
+        let generation = usage.request().unwrap().0;
+        for downloaded in [200, 0] {
+            let mut sample = connection("reused", "proxy");
+            sample.downloaded = downloaded;
+            usage.accept(
+                generation,
+                Ok(Snapshot {
+                    connections: vec![sample],
+                }),
+            );
+            assert!(
+                usage.logs.is_empty(),
+                "clear and reset do not replay totals"
+            );
+        }
+        usage.seen.get_mut("reused").unwrap().emitted_at = Instant::now() - TRAFFIC_INTERVAL;
+        let mut sample = connection("reused", "proxy");
+        sample.downloaded = 1024;
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![sample],
+            }),
+        );
+        assert!(usage.logs[0].message.ends_with("↑ 0 B · ↓ 1.0 KiB"));
+        usage.set_selected(std::iter::empty());
+        let generation = usage.request().unwrap().0;
+        let mut sample = connection("reused", "proxy");
+        sample.downloaded = 999999;
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![sample],
+            }),
+        );
+        assert_eq!(usage.logs.len(), 1, "unselected traffic stays excluded");
+        assert!(usage.seen.is_empty());
     }
 
     #[test]

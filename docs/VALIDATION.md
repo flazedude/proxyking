@@ -1,5 +1,16 @@
 # Windows preview validation
 
+## Version 0.3.5 — activity on reused connections
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 177 tests passed; production build, version consistency and formatting passed. Native: 31 tests passed, with the routing fixture separately invoked by the real-engine tests; Rust formatting and strict Clippy passed.
+- The encrypted forwarding/lifecycle test makes two HTTP keep-alive requests through Shadowsocks on the same SOCKS/TCP connection and verifies that both traffic bursts produce usage entries. This uses the bundled engine's actual cumulative byte counters and the production decoder/filter/logger.
+- Regression tests cover per-connection throttling with accumulated deltas, repeated traffic on the same ID, idle suppression, a final delta on closure, duplicate closed-history suppression, counter resets, Clear baselines and exclusion after removing selections. Existing selected-path/child filtering, stale-sample rejection, authenticated API access and bounded-history checks pass.
+- One repeat run failed while starting the loopback Shadowsocks fixture; an isolated rerun passed. The fixture now reserves distinct client/upstream ports until each is needed, reducing reuse races.
+
+Testing uses loopback and does not alter Windows proxy, routing, DNS or firewall settings. Live Steam traffic in the installed application has not been exercised; the real-engine regression reproduces reuse of a persistent connection. Byte deltas describe sampled activity, not lifetime totals or individual page requests. Missing process attribution, child-discovery delays and bounded engine history can still leave gaps.
+
 ## Version 0.3.4 — XP split view and completed-connection activity
 
 Checked on Windows x64 on 2026-11-01:
