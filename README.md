@@ -42,12 +42,14 @@ npm run dev
 
 Open [the local preview](http://127.0.0.1:1420). Browser preview profiles live only in memory; it cannot connect, test servers, or change your network.
 
+Version 0.3.4 uses an XP-style split view with profiles on the left and Connection, Processes, Activity and Settings tabs on the right. The toolbar contains Connect, Add server, Import and updates. Labels are concise and the interface has no slogans.
+
 ## First connection
 
 1. Choose **Add server** to enter an HTTP/HTTPS or SOCKS5 server address, port, and optional credentials. Alternatively, import provider share links (`ss://`, `vless://`, `trojan://`, `http://`, `https://`, or `socks5://` with an explicit port).
 2. Select the profile you want to use. **Test** measures TCP reachability only.
 3. Open **Processes → Add from process list**. Search by name, PID, or path and select the executables to tunnel. Rules apply to all instances, including later launches. Enable **Include child processes** for a launcher such as Steam or Battle.net to automatically discover its games and helpers, including grandchildren. Newly selected executables enable this by default; existing selections retain their previous behavior.
-4. Choose **Use selected processes** if another mode is active. Click **Restart as administrator**, approve Windows' prompt yourself, then press **Connect** in Overview. The app never connects automatically after restarting.
+4. Choose **Use selected processes** if another mode is active. Click **Restart as administrator**, approve Windows' prompt yourself, then press **Connect** in the toolbar. The app never connects automatically after restarting.
 5. Selected processes use the proxy; unmatched and unidentified processes go direct. Windows DNS is unchanged. Disconnect before editing servers, modes, or process rules.
 6. Press **Disconnect**, or close the app, to stop the engine. System-proxy mode restores settings still owned by ProxyKing.
 
@@ -57,7 +59,7 @@ Open [the local preview](http://127.0.0.1:1420). Browser preview profiles live o
 
 Open **Activity → Usage logging** to turn connection logging on or off, including while connected. It defaults to off and remembers your choice. Activity records only apps added in **Processes**, including their automatically included children while child tracking is active. This filter applies in every routing mode; an empty process list records no app connections. Entries show executable names, destination host/IP and port, TCP/UDP, and **Proxy** or **Direct** routing. Unrelated and unidentified processes are omitted, and connections that finish between monitor samples may be missed. A log entry records an observed route, not proof of successful delivery. Only traffic handled by ProxyKing's engine is visible; this is not a device-wide browsing history.
 
-The latest 300 usage entries stay in memory, alongside session events. **Off** stops collecting new entries and keeps existing history; **Clear** removes the displayed history. Closing the app discards it. URLs, page contents, executable directory/account paths, proxy credentials, and raw engine logs are not recorded. Browser preview never monitors connections.
+The logger reads active and recently closed engine connections, so short requests can appear after they finish. The engine keeps up to 1,000 closed connections in memory; unavailable process attribution, child-discovery delays, or heavy traffic can still leave gaps. Connections already closed before enabling or clearing logging are excluded. The latest 300 usage entries stay in memory, alongside session events. **Off** stops collecting new entries and keeps existing history; **Clear** removes the displayed history. Closing the app discards it. URLs, page contents, executable directory/account paths, proxy credentials, and raw engine logs are not recorded. Browser preview never monitors connections.
 
 ## Included in this milestone
 

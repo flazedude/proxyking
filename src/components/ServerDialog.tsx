@@ -50,14 +50,11 @@ export function ServerDialog({
   }
   return (
     <Dialog
-      title="Add proxy server"
+      title="Add server"
       close={() => {
         if (!busy) close();
       }}
     >
-      <p className="muted">
-        Use a proxy server address and credentials from your provider.
-      </p>
       <form onSubmit={submit} className="server-form">
         <div className="form-grid">
           <label>
@@ -151,10 +148,7 @@ export function ServerDialog({
                 />
               </label>
             )}
-            <p className="muted small">
-              HTTP proxies support TCP connections. Use SOCKS5 or a supported
-              VPN profile if you need UDP.
-            </p>
+            <p className="muted small">HTTP proxies support TCP only.</p>
           </>
         )}
         {error && (
@@ -164,9 +158,7 @@ export function ServerDialog({
         )}
         <p className="privacy-note">
           <LockKeyhole size={15} />
-          {isDesktop
-            ? "Credentials are encrypted for your Windows account."
-            : "Browser preview only. Profiles are held in memory."}
+          {isDesktop ? "Windows account encryption." : "Preview: memory only."}
         </p>
         <div className="dialog-actions">
           <button

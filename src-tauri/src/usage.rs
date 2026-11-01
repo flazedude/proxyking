@@ -3,6 +3,7 @@ use crate::{
     config,
     models::{now_ms, LogEntry},
 };
+use prost::Message;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
@@ -24,12 +25,14 @@ fn path_key(path: &str) -> String {
 }
 
 fn connection_path_key(path: &str) -> String {
-    let path = path_key(path);
-    // Clash metadata can append an account label to the executable path.
-    if let Some(end) = path.rfind(".exe") {
-        let suffix = &path[end + 4..];
-        if suffix.starts_with(" (") && suffix.ends_with(')') && !suffix.contains('\\') {
-            return path[..end + 4].to_owned();
+    path_key(executable_path(path))
+}
+
+fn executable_path(path: &str) -> &str {
+    // Legacy Clash metadata may append a Windows DOMAIN\account label.
+    if let Some((executable, account)) = path.rsplit_once(" (") {
+        if executable.to_lowercase().ends_with(".exe") && account.ends_with(')') {
+            return executable;
         }
     }
     path
@@ -44,12 +47,15 @@ pub struct Controller {
 
 impl Controller {
     #[cfg(test)]
-    pub fn unauthorized_for_test(&self) -> Result<(), reqwest::Error> {
-        self.client
-            .get(format!("http://{}/connections", self.address))
-            .send()?
-            .error_for_status()
-            .map(|_| ())
+    pub fn unauthorized_for_test(&self) -> Result<(), ()> {
+        let response = self
+            .client
+            .post(self.url())
+            .header("Content-Type", "application/grpc-web+proto")
+            .body(vec![0, 0, 0, 0, 0])
+            .send()
+            .map_err(|_| ())?;
+        read_snapshot(response).map(|_| ())
     }
     pub fn configure(configuration: &mut Value) -> Result<Self, String> {
         let reservation = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
@@ -60,11 +66,13 @@ impl Controller {
             .to_string();
         let secret = random_secret()?;
         let client = monitor_client()?;
-        configuration["experimental"]["clash_api"] = json!({
-            "external_controller":address, "secret":secret,
+        configuration["services"] = json!([{
+            "type":"api", "tag":"usage", "listen":"127.0.0.1",
+            "listen_port":reservation.local_addr().map_err(|_| "Could not read the usage monitor port.")?.port(), "secret":secret,
+            "dashboard":false,
             "access_control_allow_origin":["http://proxyking.invalid"],
             "access_control_allow_private_network":false
-        });
+        }]);
         // Attribution is best effort in every routing mode, without changing route rules.
         configuration["route"]["find_process"] = json!(true);
         Ok(Self {
@@ -77,22 +85,106 @@ impl Controller {
     pub fn snapshot(&self) -> Result<Snapshot, ()> {
         let response = self
             .client
-            .get(format!("http://{}/connections", self.address))
+            .post(self.url())
             .bearer_auth(&self.secret)
+            .header("Content-Type", "application/grpc-web+proto")
+            .header("X-Grpc-Web", "1")
+            .body(vec![0, 0, 0, 0, 0])
             .send()
             .map_err(|_| ())?
             .error_for_status()
             .map_err(|_| ())?;
-        let mut body = Vec::new();
-        response
-            .take(MAX_BODY + 1)
-            .read_to_end(&mut body)
-            .map_err(|_| ())?;
-        if body.len() as u64 > MAX_BODY {
-            return Err(());
-        }
-        serde_json::from_slice(&body).map_err(|_| ())
+        read_snapshot(response)
     }
+
+    fn url(&self) -> String {
+        format!(
+            "http://{}/daemon.StartedService/SubscribeConnections",
+            self.address
+        )
+    }
+}
+
+// Pinned sing-box 1.14.2 daemon/started_service.proto. Decode only the fields
+// needed for activity; usernames, credentials, rules and raw engine logs are skipped.
+#[derive(prost::Message)]
+struct WireEvents {
+    #[prost(message, repeated, tag = "1")]
+    events: Vec<WireEvent>,
+}
+#[derive(prost::Message)]
+struct WireEvent {
+    #[prost(message, optional, tag = "3")]
+    connection: Option<WireConnection>,
+}
+#[derive(prost::Message)]
+struct WireProcess {
+    #[prost(string, tag = "4")]
+    path: String,
+}
+#[derive(prost::Message)]
+struct WireConnection {
+    #[prost(string, tag = "1")]
+    id: String,
+    #[prost(string, tag = "5")]
+    network: String,
+    #[prost(string, tag = "7")]
+    destination: String,
+    #[prost(string, tag = "8")]
+    domain: String,
+    #[prost(int64, tag = "13")]
+    closed_at: i64,
+    #[prost(string, tag = "19")]
+    outbound: String,
+    #[prost(string, repeated, tag = "21")]
+    chains: Vec<String>,
+    #[prost(message, optional, tag = "22")]
+    process: Option<WireProcess>,
+}
+
+fn read_snapshot(mut response: impl Read) -> Result<Snapshot, ()> {
+    // Read only the initial gRPC-Web message, which contains active connections
+    // AND the engine's bounded recently closed history. Drop the stream afterward.
+    let mut header = [0_u8; 5];
+    response.read_exact(&mut header).map_err(|_| ())?;
+    let length = u32::from_be_bytes(header[1..].try_into().map_err(|_| ())?) as usize;
+    if header[0] != 0 || length as u64 > MAX_BODY {
+        return Err(());
+    }
+    let mut body = vec![0; length];
+    response.read_exact(&mut body).map_err(|_| ())?;
+    let events = WireEvents::decode(body.as_slice()).map_err(|_| ())?;
+    let connections = events
+        .events
+        .into_iter()
+        .filter_map(|event| {
+            let connection = event.connection?;
+            let (host, port) = connection.destination.rsplit_once(':')?;
+            let destination_ip = host
+                .trim_start_matches('[')
+                .trim_end_matches(']')
+                .to_owned();
+            let destination_port = port.to_owned();
+            let chains = if connection.chains.is_empty() {
+                vec![connection.outbound]
+            } else {
+                connection.chains
+            };
+            Some(Connection {
+                id: connection.id,
+                chains,
+                closed_at: connection.closed_at.max(0) as u64,
+                metadata: Metadata {
+                    network: connection.network,
+                    destination_ip,
+                    destination_port,
+                    host: connection.domain,
+                    process_path: connection.process.map(|p| p.path).unwrap_or_default(),
+                },
+            })
+        })
+        .collect();
+    Ok(Snapshot { connections })
 }
 
 fn monitor_client() -> Result<reqwest::blocking::Client, String> {
@@ -144,6 +236,8 @@ struct Connection {
     id: String,
     metadata: Metadata,
     chains: Vec<String>,
+    #[serde(default)]
+    closed_at: u64,
 }
 
 #[derive(Deserialize)]
@@ -195,9 +289,7 @@ impl Connection {
         } else {
             host.clone()
         };
-        let basename = self
-            .metadata
-            .process_path
+        let basename = executable_path(&self.metadata.process_path)
             .rsplit(['\\', '/'])
             .next()
             .unwrap_or_default();
@@ -230,6 +322,7 @@ pub struct Usage {
     failed: bool,
     selected: HashSet<String>,
     children: HashSet<String>,
+    collect_since: u64,
 }
 
 impl Usage {
@@ -239,6 +332,7 @@ impl Usage {
             self.selected = selected;
             self.generation += 1;
             self.seen.clear();
+            self.collect_since = now_ms();
         }
     }
 
@@ -254,6 +348,7 @@ impl Usage {
     pub fn set_enabled(&mut self, enabled: bool) {
         if self.enabled != enabled {
             self.enabled = enabled;
+            self.collect_since = now_ms();
             self.generation += 1;
             self.seen.clear();
             self.failed = false;
@@ -262,6 +357,7 @@ impl Usage {
 
     pub fn attach(&mut self, controller: Option<Controller>) {
         self.controller = controller;
+        self.collect_since = now_ms();
         self.generation += 1;
         self.seen.clear();
         self.failed = false;
@@ -269,6 +365,7 @@ impl Usage {
 
     pub fn clear(&mut self) {
         self.logs.clear();
+        self.collect_since = now_ms();
         // Reject requests already in flight; keep observed active IDs to avoid duplicates.
         self.generation += 1;
     }
@@ -292,6 +389,9 @@ impl Usage {
                 self.failed = false;
                 let mut active = HashSet::new();
                 for connection in snapshot.connections.into_iter().take(10000) {
+                    if connection.closed_at > 0 && connection.closed_at < self.collect_since {
+                        continue;
+                    }
                     let path = connection_path_key(&connection.metadata.process_path);
                     if !self.selected.contains(&path) && !self.children.contains(&path) {
                         continue;
@@ -330,6 +430,88 @@ impl Usage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decodes_closed_connection_metadata_and_rejects_bad_frames() {
+        let events = WireEvents {
+            events: vec![WireEvent {
+                connection: Some(WireConnection {
+                    id: "short-lived".into(),
+                    network: "tcp".into(),
+                    destination: "[2001:db8::1]:443".into(),
+                    domain: String::new(),
+                    closed_at: 123,
+                    outbound: "proxy".into(),
+                    chains: Vec::new(),
+                    process: Some(WireProcess {
+                        path: r"C:\Apps\steam.exe".into(),
+                    }),
+                }),
+            }],
+        };
+        let body = events.encode_to_vec();
+        let mut frame = vec![0];
+        frame.extend_from_slice(&(body.len() as u32).to_be_bytes());
+        frame.extend_from_slice(&body);
+        let snapshot = read_snapshot(std::io::Cursor::new(frame)).unwrap();
+        assert_eq!(snapshot.connections[0].closed_at, 123);
+        assert_eq!(
+            snapshot.connections[0].message().unwrap(),
+            "steam.exe → [2001:db8::1]:443 · TCP · Proxy (observed)"
+        );
+        for frame in [
+            vec![128, 0, 0, 0, 0],
+            vec![1, 0, 0, 0, 0],
+            vec![0, 0, 64, 0, 1],
+            vec![0, 0, 0, 0, 10, 1],
+            vec![0, 0, 0, 0, 1, 255],
+        ] {
+            assert!(read_snapshot(std::io::Cursor::new(frame)).is_err());
+        }
+    }
+
+    #[test]
+    fn closed_history_does_not_replay_off_periods_or_cleared_entries() {
+        let mut usage = active();
+        usage.collect_since = 100;
+        let mut old = connection("before-on", "proxy");
+        old.closed_at = 90;
+        let mut recent = connection("after-on", "proxy");
+        recent.closed_at = 110;
+        let generation = usage.request().unwrap().0;
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![old, recent],
+            }),
+        );
+        assert_eq!(usage.logs.len(), 1);
+        usage.clear();
+        let generation = usage.request().unwrap().0;
+        let mut recent = connection("after-on", "proxy");
+        recent.closed_at = 110;
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![recent],
+            }),
+        );
+        assert!(usage.logs.is_empty());
+        usage.set_enabled(false);
+        usage.set_enabled(true);
+        let generation = usage.request().unwrap().0;
+        let mut off = connection("while-off", "proxy");
+        off.closed_at = usage.collect_since.saturating_sub(1);
+        let mut new = connection("after-reenable", "proxy");
+        new.closed_at = usage.collect_since + 1;
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![off, new],
+            }),
+        );
+        assert_eq!(usage.logs.len(), 1);
+    }
 
     fn connection(id: &str, route: &str) -> Connection {
         serde_json::from_value(json!({
@@ -420,6 +602,10 @@ mod tests {
 
     #[test]
     fn path_matching_preserves_executable_boundaries_and_unc_paths() {
+        assert_eq!(
+            connection_path_key(r"C:\Apps\steam.exe (DOMAIN\account)"),
+            path_key(r"C:\Apps\steam.exe")
+        );
         assert_eq!(
             path_key(r"\\?\UNC\Server\Share\App.exe"),
             path_key(r"\\server\share\app.exe")

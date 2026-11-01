@@ -23,7 +23,7 @@ export function AppUpdater({
   const installing = useRef(false);
   const mounted = useRef(false);
   const [version, setVersion] = useState<string | null>(null);
-  const [phase, setPhase] = useState("Automatic update checks are enabled.");
+  const [phase, setPhase] = useState("Updates");
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
 
@@ -32,7 +32,7 @@ export function AppUpdater({
     checking.current = true;
     setWorking(true);
     setError("");
-    setPhase("Checking LAN hosts and GitHub for updates…");
+    setPhase("Checking for updates…");
     try {
       const update = await checkForUpdates();
       if (!isAlive()) {
@@ -43,13 +43,11 @@ export function AppUpdater({
       pending.current = update;
       setVersion(update?.version ?? null);
       setPhase(
-        update
-          ? `Version ${update.version} is available.`
-          : "No newer version found on available sources.",
+        update ? `Version ${update.version} is available.` : "No update found.",
       );
     } catch (err) {
       if (isAlive()) {
-        setPhase("Automatic checks retry every 6 hours.");
+        setPhase("Update check failed.");
         setError(err instanceof Error ? err.message : String(err));
       }
     } finally {
@@ -83,7 +81,7 @@ export function AppUpdater({
     installing.current = true;
     setWorking(true);
     setError("");
-    setPhase("Downloading and verifying the update…");
+    setPhase("Downloading and verifying…");
     onBegin();
     let downloaded = 0;
     let total = 0;
@@ -133,12 +131,7 @@ export function AppUpdater({
           <p className="form-error" role="alert">
             {error}
           </p>
-        ) : (
-          <p>
-            Signed updates from your LAN hosts and GitHub. Installation
-            disconnects the proxy.
-          </p>
-        )}
+        ) : null}
       </div>
       <button
         className="button secondary small-button"

@@ -1,5 +1,16 @@
 # Windows preview validation
 
+## Version 0.3.4 — XP split view and completed-connection activity
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 177 tests passed; production build, version consistency and formatting passed. Native: 29 tests passed, plus the separately invoked routing fixture; Rust formatting and strict Clippy passed.
+- Real-engine routing tests now complete the client request, wait longer than the monitor interval, then verify selected executable attribution and Proxy/Direct labels from closed-connection metadata. The encrypted forwarding/lifecycle test verifies authenticated access and exclusion after removing all selections. Unit tests cover gRPC-Web frame bounds/malformed input, IPv6, legacy domain/account suffixes, filtering, deduplication, Clear, and exclusion of connections closed while logging was off.
+- Browser UI checks cover adding/renaming profiles, every tab, logging on/off, inert reload behavior, and layouts at 1220, 850 and 320 pixels. The XP title bar, profiles pane, Connection and Processes pages were visually inspected. Existing credentials and native update/cleanup flows are preserved.
+- An isolated native build with a separate temporary app identifier opened with no profiles, Engine Ready and disconnected startup. Custom maximize/restore and Close controls were exercised; the validation app exited with code 0 while the installed instance remained running. No test connection was started.
+
+No Windows proxy, route, DNS, or firewall settings were changed for testing. The existing connected installed app was left running. Live Steam/TUN capture has not been exercised in the installed update; use the published update and reconnect to validate that session. Missing process attribution, child-discovery delays and bounded engine history can still leave gaps.
+
 ## Version 0.3.3 — selected-process activity
 
 Checked on Windows x64 on 2026-11-01:

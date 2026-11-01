@@ -281,6 +281,10 @@ fn run_observed_client(
         .to_lowercase();
     let executable = executable.to_owned();
     let client = thread::spawn(move || run_client(&executable, proxy_port, origin_port, expected));
+    client.join().unwrap();
+    // The connection has finished before any monitor sample: short requests must
+    // still be recorded from the engine's structured recently closed history.
+    thread::sleep(Duration::from_millis(1100));
     let deadline = Instant::now() + Duration::from_secs(4);
     loop {
         let (generation, monitor) = usage.request().unwrap();
@@ -296,7 +300,6 @@ fn run_observed_client(
         );
         thread::sleep(Duration::from_millis(10));
     }
-    client.join().unwrap();
 }
 
 #[test]

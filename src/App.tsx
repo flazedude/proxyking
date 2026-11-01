@@ -1,29 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Activity,
-  ArrowDownToLine,
-  ArrowRight,
-  ArrowUpRight,
   Check,
   CheckCircle2,
-  ChevronRight,
   Copy,
   Crown,
+  Minus,
+  Square,
   FileUp,
   Globe2,
-  Layers,
-  LayoutDashboard,
-  ListFilter,
   Loader2,
   LockKeyhole,
-  Monitor,
   Network,
   Pencil,
   Plus,
   Power,
   Search,
-  Settings2,
   ShieldCheck,
   Signal,
   Trash2,
@@ -40,7 +34,6 @@ import {
   getProfileSecurity,
   importProfiles,
   profileFingerprint,
-  profileSummary,
 } from "./lib/profiles";
 import type {
   AppSettings,
@@ -50,13 +43,12 @@ import type {
   SavedState,
 } from "./types";
 
-type Page = "overview" | "profiles" | "processes" | "activity" | "settings";
+type Page = "overview" | "processes" | "activity" | "settings";
 const navigation = [
-  { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
-  { id: "profiles" as const, label: "Profiles", icon: Layers },
-  { id: "processes" as const, label: "Processes", icon: ListFilter },
-  { id: "activity" as const, label: "Activity", icon: Activity },
-  { id: "settings" as const, label: "Settings", icon: Settings2 },
+  { id: "overview" as const, label: "Connection" },
+  { id: "processes" as const, label: "Processes" },
+  { id: "activity" as const, label: "Activity" },
+  { id: "settings" as const, label: "Settings" },
 ];
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -110,9 +102,7 @@ function ImportDialog({
         if (!busy) close();
       }}
     >
-      <p className="muted">
-        Paste the share links from your provider, one per line.
-      </p>
+      <p className="muted">One share link per line.</p>
       <div className="protocol-pills">
         <span>Shadowsocks</span>
         <span>VLESS</span>
@@ -142,7 +132,7 @@ function ImportDialog({
             type="button"
             onClick={() => file.current?.click()}
           >
-            <FileUp size={16} /> Import a .txt file
+            <FileUp size={16} /> Import file
           </button>
           <span>Share links only</span>
         </div>
@@ -173,9 +163,7 @@ function ImportDialog({
         )}
         <p className="privacy-note">
           <LockKeyhole size={15} />{" "}
-          {isDesktop
-            ? "Saved credentials are encrypted for your Windows account."
-            : "Preview profiles stay in memory and clear when you reload."}
+          {isDesktop ? "Windows account encryption." : "Preview: memory only."}
         </p>
         <div className="dialog-actions">
           <button
@@ -188,7 +176,7 @@ function ImportDialog({
           </button>
           <button className="button primary" disabled={!text.trim() || busy}>
             {busy ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}{" "}
-            Import profiles
+            Import
           </button>
         </div>
       </form>
@@ -240,15 +228,13 @@ function SettingsPanel({
       >
         <div className="section-heading">
           <div>
-            <h2>Connection preferences</h2>
-            <p>Make ProxyKing work your way.</p>
+            <h2>Connection settings</h2>
           </div>
           <Network size={21} />
         </div>
         <div className="setting-row">
           <div>
             <h3>Routing mode</h3>
-            <p>Choose which apps use your selected server.</p>
           </div>
           <select
             aria-label="Routing mode"
@@ -285,10 +271,10 @@ function SettingsPanel({
           <ShieldCheck size={18} />
           <p>
             {draft.routingMode === "processes"
-              ? "Choose apps on the Processes page. Administrator access is required. Other processes go direct; DNS stays with Windows."
+              ? "Administrator required. Other processes go direct; DNS stays with Windows."
               : draft.routingMode === "system"
-                ? "Apps that honor Windows proxy settings use the server. Your previous proxy settings are restored on disconnect."
-                : "Configure individual apps to use the local HTTP/SOCKS5 listener. Windows proxy settings stay unchanged."}
+                ? "Uses Windows proxy settings. Restored on disconnect."
+                : "Configure each app to use the local HTTP/SOCKS5 proxy."}
           </p>
         </div>
         {disabled && (
@@ -302,13 +288,13 @@ function SettingsPanel({
           </p>
         )}
         <button className="button primary" disabled={disabled || !changed}>
-          <Check size={16} /> Save preferences
+          <Check size={16} /> Save
         </button>
       </form>
       <div className="panel settings-panel">
         <div className="section-heading">
           <div>
-            <h2>Made for your desktop</h2>
+            <h2>About</h2>
             <p>ProxyKing for Windows · {appVersion}</p>
           </div>
           <Crown size={23} />
@@ -341,23 +327,6 @@ function SettingsPanel({
             <dd>Disconnect and quit</dd>
           </div>
         </dl>
-        <div className="roadmap">
-          <span className="eyebrow">WHAT’S NEXT</span>
-          <h3>One app. More places.</h3>
-          <p>
-            macOS, then Android, then iOS. Each platform will get its own native
-            network integration.
-          </p>
-          <div>
-            <span className="current-platform">Windows</span>
-            <ChevronRight size={13} />
-            <span>macOS</span>
-            <ChevronRight size={13} />
-            <span>Android</span>
-            <ChevronRight size={13} />
-            <span>iOS</span>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -467,10 +436,7 @@ export default function App() {
     ]);
   }
   async function persist(next: SavedState) {
-    if (loadError)
-      throw new Error(
-        "Resolve the profile storage error before saving changes.",
-      );
+    if (loadError) throw new Error("Resolve the storage error before saving.");
     setBusy(true);
     try {
       await backend.save(next);
@@ -487,8 +453,7 @@ export default function App() {
       fingerprints.add(key);
       return true;
     });
-    if (!unique.length)
-      throw new Error("These profiles are already in your library.");
+    if (!unique.length) throw new Error("Profiles already added.");
     await persist({
       ...data,
       profiles: [...data.profiles, ...unique],
@@ -548,7 +513,7 @@ export default function App() {
       const result = await backend.test(profile);
       setLatencies((items) => ({ ...items, [profile.id]: result.latencyMs }));
       setNotice({
-        text: `Server reachable in ${result.latencyMs} ms. This TCP check does not verify credentials.`,
+        text: `TCP reachable: ${result.latencyMs} ms. Credentials untested.`,
       });
     } catch (err) {
       setLatencies((items) => ({ ...items, [profile.id]: "failed" }));
@@ -557,90 +522,113 @@ export default function App() {
       setTesting(null);
     }
   }
-  const profilesPanel = (
-    <section className="panel profiles-panel">
-      <div className="section-heading">
-        <div className="section-title">
-          <h2>Your profiles</h2>
-          <span className="count">{data.profiles.length}</span>
-        </div>
-        <div className="header-actions">
+  async function windowAction(action: "minimize" | "maximize" | "close") {
+    if (!isDesktop) return;
+    try {
+      const window = getCurrentWindow();
+      if (action === "minimize") await window.minimize();
+      if (action === "maximize") await window.toggleMaximize();
+      if (action === "close") await window.close();
+    } catch (err) {
+      setNotice({ text: errorMessage(err), error: true });
+    }
+  }
+  const connectDisabled =
+    (!connected && !selected) ||
+    busy ||
+    !loaded ||
+    !!loadError ||
+    (!!selected && !connected && (!isDesktop || !status.engineAvailable));
+  return (
+    <div className="app-shell">
+      <header className="window-titlebar" data-tauri-drag-region>
+        <span className="window-title" data-tauri-drag-region>
+          <Crown size={17} /> ProxyKing
+        </span>
+        <div className="window-controls">
           <button
-            className="button primary small-button"
-            disabled={locked}
-            onClick={() => setShowServer(true)}
+            aria-label="Minimize window"
+            disabled={!isDesktop}
+            onClick={() => void windowAction("minimize")}
           >
-            <Plus size={16} /> Add server
+            <Minus size={15} />
           </button>
           <button
-            className="button secondary small-button"
-            disabled={locked}
-            onClick={() => setShowImport(true)}
+            aria-label="Maximize or restore window"
+            disabled={!isDesktop}
+            onClick={() => void windowAction("maximize")}
           >
-            <FileUp size={16} /> Import profiles
+            <Square size={13} />
+          </button>
+          <button
+            aria-label="Close window"
+            disabled={!isDesktop || busy}
+            onClick={() => void windowAction("close")}
+          >
+            <X size={17} />
           </button>
         </div>
+      </header>
+      <div className="app-toolbar">
+        <button
+          className="button primary"
+          disabled={connectDisabled}
+          onClick={() => void connect()}
+        >
+          {busy ? <Loader2 size={15} className="spin" /> : <Power size={15} />}
+          {connected ? "Disconnect" : "Connect"}
+        </button>
+        <span className="toolbar-separator" />
+        <button
+          className="button secondary"
+          disabled={locked}
+          onClick={() => setShowServer(true)}
+        >
+          <Plus size={15} /> Add server
+        </button>
+        <button
+          className="button secondary"
+          disabled={locked}
+          onClick={() => setShowImport(true)}
+        >
+          <FileUp size={15} /> Import
+        </button>
+        <AppUpdater
+          disabled={busy || !loaded || !!loadError}
+          onBegin={() => setBusy(true)}
+          disconnect={async () => setStatus(await backend.disconnect())}
+          onEnd={() => setBusy(false)}
+        />
       </div>
-      {data.profiles.length > 0 ? (
-        <>
+      <main className="xp-workspace">
+        <aside className="profile-master" aria-label="Profiles">
+          <h2>Profiles</h2>
           <div className="search-field">
-            <Search size={17} />
+            <Search size={14} />
             <input
               aria-label="Search profiles"
-              placeholder="Search by name, server, or protocol…"
+              placeholder="Search profiles"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <div className="profile-table">
-            <div className="table-heading">
-              <span>PROFILE / SERVER</span>
-              <span>PROTOCOL</span>
-              <span>TCP LATENCY</span>
-              <span />
-            </div>
+          <div className="profile-list">
             {filteredProfiles.map((profile) => (
               <div
-                className={`profile-row ${profile.id === data.selectedProfileId ? "selected" : ""}`}
+                className={`profile-row ${profile.id === selected?.id ? "selected" : ""}`}
                 key={profile.id}
               >
                 <button
                   className="profile-select"
                   disabled={locked}
+                  aria-pressed={profile.id === selected?.id}
                   onClick={() => void select(profile)}
-                  aria-label={`Select ${profile.name}`}
-                  aria-pressed={profile.id === data.selectedProfileId}
                 >
-                  <span
-                    className={`selection-radio ${profile.id === data.selectedProfileId ? "checked" : ""}`}
-                  />
-                  <span className="server-symbol">
-                    <Globe2 size={19} />
-                  </span>
-                  <span className="profile-name">
+                  <Globe2 size={19} />
+                  <span>
                     <strong>{profile.name}</strong>
-                    <small title={endpoint(profile)}>{endpoint(profile)}</small>
+                    <small>{formatProtocol(profile.protocol)}</small>
                   </span>
-                </button>
-                <span className={`protocol-label protocol-${profile.protocol}`}>
-                  {formatProtocol(profile.protocol)}
-                </span>
-                <button
-                  className="latency-button"
-                  title="Check TCP reachability, not authentication"
-                  disabled={!isDesktop || testing !== null || busy}
-                  onClick={() => void test(profile)}
-                >
-                  {testing === profile.id ? (
-                    <Loader2 className="spin" size={14} />
-                  ) : (
-                    <Signal size={14} />
-                  )}
-                  {latencies[profile.id] === "failed"
-                    ? "Unreachable"
-                    : typeof latencies[profile.id] === "number"
-                      ? `${latencies[profile.id]} ms`
-                      : "Test"}
                 </button>
                 <div className="row-actions">
                   <button
@@ -652,175 +640,66 @@ export default function App() {
                       setRenameValue(profile.name);
                     }}
                   >
-                    <Pencil size={15} />
+                    <Pencil size={13} />
                   </button>
                   <button
-                    className="icon-button delete"
+                    className="icon-button"
                     aria-label={`Delete ${profile.name}`}
                     disabled={locked}
                     onClick={() => setDeleting(profile)}
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={13} />
                   </button>
                 </div>
               </div>
             ))}
             {!filteredProfiles.length && (
-              <div className="empty-search">No profiles match “{query}”.</div>
+              <p className="empty-profiles">
+                {query ? "No matching profiles." : "No profiles."}
+              </p>
             )}
           </div>
-          <div className="panel-footnote">
-            <LockKeyhole size={14} />
-            {isDesktop
-              ? "Profiles are stored on this device with Windows account encryption."
-              : "Preview only. Profiles clear when this page reloads."}
-          </div>
-        </>
-      ) : (
-        <div className="empty-profiles">
-          <div className="empty-art">
-            <span />
-            <div>
-              <Layers size={30} strokeWidth={1.4} />
-            </div>
-            <span />
-          </div>
-          <h3>A home for your connections.</h3>
-          <p>
-            Add an HTTP or SOCKS5 server, or import your provider’s profiles.
-            <br />
-            We’ll keep them organized and ready to go.
+          <p className="profile-count">
+            {data.profiles.length} profile
+            {data.profiles.length === 1 ? "" : "s"}
           </p>
-          <button
-            className="text-button"
-            disabled={locked}
-            onClick={() => setShowServer(true)}
-          >
-            Add your first server <ArrowRight size={17} />
-          </button>
-          <div className="supported">
-            <span>SHADOWSOCKS</span>
-            <i />
-            <span>VLESS</span>
-            <i />
-            <span>TROJAN</span>
-            <i />
-            <span>HTTP</span>
-            <i />
-            <span>SOCKS5</span>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a
-          href="#"
-          className="brand"
-          aria-label="ProxyKing home"
-          onClick={(e) => {
-            e.preventDefault();
-            setPage("overview");
-          }}
-        >
-          <span className="brand-icon">
-            <Crown size={25} strokeWidth={1.8} />
-          </span>
-          <span>
-            Proxy<span className="brand-king">King</span>
-            <small>YOUR NETWORK. YOUR RULES.</small>
-          </span>
-        </a>
-        <div className="nav-label">WORKSPACE</div>
-        <nav aria-label="Main navigation">
-          {navigation.map((item) => (
-            <button
-              key={item.id}
-              aria-label={item.label}
-              onClick={() => setPage(item.id)}
-              className={`nav-item ${page === item.id ? "active" : ""}`}
-              aria-current={page === item.id ? "page" : undefined}
-            >
-              <item.icon size={19} />
-              <span>{item.label}</span>
-              {item.id === "profiles" && (
-                <span className="nav-count">{data.profiles.length}</span>
-              )}
-              {page === item.id && item.id !== "profiles" && (
-                <span className="nav-dot" />
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="local-card">
-            <ShieldCheck size={21} />
-            <h3>Yours, by design.</h3>
-            <p>Your profiles stay on your device. No account required.</p>
-            <span>
-              LOCAL FIRST <span />
-            </span>
-          </div>
-          <div className="app-version">
-            <Monitor size={16} />
-            <span>Windows preview</span>
-            <span>v{appVersion}</span>
-          </div>
-        </div>
-      </aside>
-      <main>
-        <header className="topbar">
-          <div className="breadcrumb">
-            Workspace <ChevronRight size={14} />
-            <strong>{navigation.find((n) => n.id === page)?.label}</strong>
-          </div>
-          <div className="topbar-right">
-            <span className="platform-badge">
-              <Monitor size={14} /> WINDOWS
-            </span>
-            <span className="avatar">
-              <Crown size={17} />
-            </span>
-          </div>
-        </header>
-        <div className="content">
-          <AppUpdater
-            disabled={busy || !loaded || !!loadError}
-            onBegin={() => setBusy(true)}
-            disconnect={async () => {
-              setStatus(await backend.disconnect());
-            }}
-            onEnd={() => setBusy(false)}
-          />
-          {!isDesktop && (
-            <div className="preview-banner">
-              <Monitor size={15} />
-              <span>
-                Browser preview · Open the Windows app to connect. Profiles here
-                are temporary.
-              </span>
-            </div>
-          )}
-          {loadError && (
-            <div className="alert error" role="alert">
-              <span>Could not load your saved profiles: {loadError}</span>
+        </aside>
+        <div className="workspace-detail">
+          <nav className="page-tabs" aria-label="Main navigation">
+            {navigation.map((item) => (
               <button
-                className="text-button"
-                onClick={() => window.location.reload()}
+                key={item.id}
+                className={page === item.id ? "active" : ""}
+                aria-current={page === item.id ? "page" : undefined}
+                onClick={() => setPage(item.id)}
               >
-                Retry
+                {item.label}
               </button>
-            </div>
-          )}
-          {status.error && (
-            <div className="alert error" role="alert">
-              <span>{status.error}</span>
-              {isDesktop && (
+            ))}
+          </nav>
+          <div className="content">
+            {!isDesktop && (
+              <div className="preview-banner">
+                Browser preview. Connections are disabled; profiles are
+                temporary.
+              </div>
+            )}
+            {loadError && (
+              <div className="alert error" role="alert">
+                Could not load profiles: {loadError}
                 <button
-                  className="text-button"
+                  className="button secondary"
+                  onClick={() => window.location.reload()}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {status.error && (
+              <div className="alert error" role="alert">
+                {status.error}
+                <button
+                  className="button secondary"
                   disabled={busy}
                   onClick={async () => {
                     setBusy(true);
@@ -835,217 +714,60 @@ export default function App() {
                 >
                   Retry cleanup
                 </button>
-              )}
-            </div>
-          )}
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">
-                {page === "overview"
-                  ? "A LITTLE MORE FREEDOM"
-                  : "YOUR NETWORK, IN FOCUS"}
               </div>
-              <h1>
-                {page === "overview"
-                  ? "Your connection, in command."
-                  : page === "profiles"
-                    ? "A place for every connection."
-                    : page === "processes"
-                      ? "Only the apps you choose."
-                      : page === "activity"
-                        ? "Behind the connection."
-                        : "Make yourself at home."}
-              </h1>
-              <p>
-                {page === "overview"
-                  ? "A clear view of your network. Everything right where you need it."
-                  : page === "profiles"
-                    ? "Import, organize, and choose where you connect."
-                    : page === "processes"
-                      ? "Choose executable files to tunnel through your selected proxy server."
-                      : page === "activity"
-                        ? "Connection events from this session, without your credentials."
-                        : "Simple controls for the way you connect."}
-              </p>
-            </div>
-            {page === "overview" && (
-              <span className="build-tag">
-                EARLY ACCESS <span>01</span>
-              </span>
             )}
-          </div>
-          {page === "overview" && (
-            <>
-              <div className="scope-summary">
-                <ListFilter size={19} />
-                <div>
-                  <strong>{modeLabel(activeMode)}</strong>
-                  <span>
-                    {activeMode === "processes"
-                      ? `${data.settings.selectedProcesses.length} selected executable${data.settings.selectedProcesses.length === 1 ? "" : "s"} · other processes go direct`
-                      : "Choose selected-process mode to tunnel only specific apps."}
-                  </span>
+            {page === "overview" && (
+              <>
+                <div className="profile-heading">
+                  <Network size={31} />
+                  <div>
+                    <h1>{selected?.name || "Connection"}</h1>
+                    <p>
+                      {selected
+                        ? formatProtocol(selected.protocol)
+                        : "Add a server to connect."}
+                    </p>
+                  </div>
                 </div>
-                <button
-                  className="text-button"
-                  onClick={() => setPage("processes")}
-                >
-                  Manage processes <ArrowRight size={16} />
-                </button>
-              </div>
-              <div className="connection-grid">
-                <section
-                  className={`connection-card ${connected ? "is-connected" : ""}`}
-                >
-                  <svg
-                    className="orbital-art"
-                    viewBox="0 0 420 330"
-                    aria-hidden="true"
-                  >
-                    <g fill="none" stroke="currentColor" strokeWidth=".8">
-                      <circle cx="290" cy="150" r="115" />
-                      <circle cx="290" cy="150" r="145" />
-                      <circle cx="290" cy="150" r="180" />
-                      <ellipse cx="290" cy="150" rx="55" ry="115" />
-                      <ellipse cx="290" cy="150" rx="90" ry="115" />
-                      <path d="M175 150h230M184 105h212M185 195h210M215 63q75 20 150 0M215 236q75-20 150 0" />
-                      <path d="M66 240Q230 250 349 59" strokeDasharray="4 7" />
-                    </g>
-                    <circle cx="198" cy="219" r="6" fill="currentColor" />
-                    <circle cx="349" cy="59" r="4" fill="currentColor" />
-                  </svg>
-                  <div className="connection-status">
-                    <span className={`status-dot ${connected ? "live" : ""}`} />
-                    {busy
-                      ? "WORKING…"
-                      : connected
-                        ? "PROXY RUNNING"
-                        : "DISCONNECTED"}
-                    <span className="connection-mode">
-                      {modeLabel(activeMode)}
-                    </span>
-                  </div>
-                  <div className="connection-main">
-                    <div>
-                      <h2>
-                        {connected ? (
-                          <>
-                            A connection.
-                            <br />
-                            On your terms.
-                          </>
-                        ) : (
-                          <>
-                            Ready when
-                            <br />
-                            you are.
-                          </>
-                        )}
-                      </h2>
-                      <p>
-                        {connected
-                          ? `Running with ${selected?.name || "your selected profile"}.`
-                          : selected
-                            ? `${selected.name} is selected and ready.`
-                            : "Your next connection starts with a profile."}
-                      </p>
-                    </div>
-                    <button
-                      className={`power-button ${connected ? "powered" : ""}`}
-                      aria-label={
-                        connected
-                          ? "Disconnect proxy"
-                          : selected
-                            ? "Connect proxy"
-                            : "Add a server to connect"
-                      }
-                      onClick={() => void connect()}
-                      disabled={
-                        busy ||
-                        !loaded ||
-                        !!loadError ||
-                        (!!selected &&
-                          !connected &&
-                          (!isDesktop || !status.engineAvailable))
-                      }
-                    >
-                      {busy ? (
-                        <Loader2 size={34} className="spin" />
-                      ) : (
-                        <Power size={34} strokeWidth={1.6} />
-                      )}
-                    </button>
-                  </div>
-                  <div className="connection-bottom">
-                    <div className="connection-hint">
-                      <span className="tiny-icon">
-                        <Network size={17} />
-                      </span>
-                      <span>
-                        {connected ? (
-                          <>
-                            <strong>
-                              {activeMode === "processes"
-                                ? "Selected-process tunnel"
-                                : status.systemProxy
-                                  ? "Windows proxy enabled"
-                                  : "Local listener enabled"}
-                            </strong>
-                            <small>127.0.0.1:{status.localPort}</small>
-                          </>
-                        ) : (
-                          <>
-                            <strong>
-                              {selected
-                                ? formatProtocol(selected.protocol)
-                                : "Let’s get you set up"}
-                            </strong>
-                            <small>
-                              {selected
-                                ? endpoint(selected)
-                                : "Add a server to begin"}
-                            </small>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    <button
-                      className="card-action"
-                      disabled={
-                        busy ||
-                        !loaded ||
-                        !!loadError ||
-                        (!!selected &&
-                          !connected &&
-                          (!isDesktop || !status.engineAvailable))
-                      }
-                      onClick={() => void connect()}
-                    >
-                      {connected
-                        ? "Disconnect"
-                        : selected
-                          ? "Connect"
-                          : "Get started"}
-                      <ArrowUpRight size={18} />
-                    </button>
-                  </div>
-                </section>
-                <section className="panel details-panel">
+                <section className="panel">
                   <div className="section-heading">
-                    <h2>Connection details</h2>
-                    <span className="details-icon">
-                      <Network size={17} />
-                    </span>
+                    <h2>Connection</h2>
                   </div>
                   <dl className="details-list">
                     <div>
-                      <dt>Active profile</dt>
-                      <dd>{connected ? selected?.name : "Not connected"}</dd>
+                      <dt>Status</dt>
+                      <dd>
+                        <span
+                          className={`mini-dot ${connected ? "available" : ""}`}
+                        />
+                        {status.state === "connecting"
+                          ? "Connecting"
+                          : connected
+                            ? "Proxy running"
+                            : status.state === "error"
+                              ? "Error"
+                              : "Disconnected"}
+                      </dd>
                     </div>
                     <div>
-                      <dt>Protocol</dt>
-                      <dd>
-                        {selected ? formatProtocol(selected.protocol) : "—"}
+                      <dt>Server</dt>
+                      <dd className="mono">
+                        {selected ? endpoint(selected) : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Security</dt>
+                      <dd>{selected ? getProfileSecurity(selected) : "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Routing</dt>
+                      <dd>{modeLabel(activeMode)}</dd>
+                    </div>
+                    <div>
+                      <dt>Local proxy</dt>
+                      <dd className="mono">
+                        127.0.0.1:
+                        {connected ? status.localPort : data.settings.localPort}
                       </dd>
                     </div>
                     <div>
@@ -1057,18 +779,8 @@ export default function App() {
                       </dd>
                     </div>
                     <div>
-                      <dt>Local endpoint</dt>
-                      <dd className="mono">
-                        127.0.0.1:
-                        {connected ? status.localPort : data.settings.localPort}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Connection engine</dt>
+                      <dt>Engine</dt>
                       <dd>
-                        <span
-                          className={`mini-dot ${status.engineAvailable ? "available" : ""}`}
-                        />
                         {status.engineAvailable
                           ? "Ready"
                           : isDesktop
@@ -1077,279 +789,202 @@ export default function App() {
                       </dd>
                     </div>
                   </dl>
-                  <div className="details-footer">
-                    <span>
-                      {connected
-                        ? "Server authentication occurs when traffic flows."
-                        : "A fresh start. Connect when you’re ready."}
+                  <div className="panel-actions">
+                    <span className="muted small">
+                      {selected && latencies[selected.id] === "failed"
+                        ? "Unreachable"
+                        : selected && typeof latencies[selected.id] === "number"
+                          ? `${latencies[selected.id]} ms · TCP only`
+                          : "TCP reachability only."}
                     </span>
+                    <button
+                      className="button secondary"
+                      disabled={
+                        !isDesktop || !selected || testing !== null || busy
+                      }
+                      onClick={() => selected && void test(selected)}
+                    >
+                      {testing ? (
+                        <Loader2 className="spin" size={14} />
+                      ) : (
+                        <Signal size={14} />
+                      )}
+                      Test server
+                    </button>
                   </div>
                 </section>
-              </div>
-              <div className="quick-stats">
-                <div>
-                  <span className="stat-icon">
-                    <Layers size={19} />
-                  </span>
-                  <div>
-                    <span>Saved profiles</span>
-                    <strong>
-                      {data.profiles.length.toString().padStart(2, "0")}
-                      <small>in your library</small>
-                    </strong>
+                <section className="panel">
+                  <div className="section-heading">
+                    <h2>Selected processes</h2>
+                    <button
+                      className="button secondary"
+                      onClick={() => setPage("processes")}
+                    >
+                      Edit
+                    </button>
                   </div>
-                </div>
-                <div>
-                  <span className="stat-icon">
-                    <ShieldCheck size={19} />
-                  </span>
-                  <div>
-                    <span>Routing mode</span>
-                    <strong>
-                      {modeLabel(activeMode)}
-                      <small>
-                        {activeMode === "processes"
-                          ? "Other processes direct"
-                          : data.settings.systemProxy
-                            ? "Proxy-aware apps"
-                            : "Manual app setup"}
-                      </small>
-                    </strong>
-                  </div>
-                </div>
-                <div>
-                  <span className="stat-icon">
-                    <LockKeyhole size={18} />
-                  </span>
-                  <div>
-                    <span>Profile storage</span>
-                    <strong>
-                      {isDesktop ? "On this device" : "Preview session"}
-                      <small>
-                        {isDesktop
-                          ? "Encrypted with Windows"
-                          : "In memory only"}
-                      </small>
-                    </strong>
-                  </div>
-                </div>
-              </div>
-              {profilesPanel}
-              <div className="getting-started">
-                <span className="eyebrow">
-                  THREE STEPS TO YOUR NEXT CONNECTION
-                </span>
-                <div>
-                  {[
-                    {
-                      number: "01",
-                      icon: ArrowDownToLine,
-                      title: "Bring your profiles",
-                      text: "Add a proxy server or import a share link.",
-                    },
-                    {
-                      number: "02",
-                      icon: Globe2,
-                      title: "Choose your apps",
-                      text: "Select executables on the Processes page.",
-                    },
-                    {
-                      number: "03",
-                      icon: Power,
-                      title: "Make the connection",
-                      text: "Start your proxy with a single click.",
-                    },
-                  ].map((step) => (
-                    <div className="setup-step" key={step.number}>
-                      <span className="step-number">{step.number}</span>
-                      <div>
-                        <h3>{step.title}</h3>
-                        <p>{step.text}</p>
-                      </div>
-                      <step.icon size={18} />
+                  {data.settings.selectedProcesses.length ? (
+                    <div className="summary-processes">
+                      {data.settings.selectedProcesses.map((target) => (
+                        <div key={target.path}>
+                          <strong>{target.name}</strong>
+                          <span>
+                            {target.includeChildren
+                              ? "Includes children"
+                              : "Selected"}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-          {page === "profiles" && (
-            <>
-              {profilesPanel}
-              {selected && (
-                <div className="selected-info">
-                  <CheckCircle2 size={19} />
-                  <span>
-                    <strong>{selected.name}</strong> is selected ·{" "}
-                    {profileSummary(selected)} · {getProfileSecurity(selected)}
-                  </span>
-                  <button
-                    className="text-button"
-                    onClick={() => setPage("overview")}
-                  >
-                    Overview <ArrowRight size={16} />
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-          {page === "processes" && (
-            <ProcessRouting
-              targets={data.settings.selectedProcesses}
-              mode={data.settings.routingMode}
-              disabled={locked}
-              isElevated={status.isElevated}
-              inheritedProcesses={status.inheritedProcesses}
-              save={async (targets) => {
-                await persist({
-                  ...data,
-                  settings: { ...data.settings, selectedProcesses: targets },
-                });
-              }}
-              enable={async () => {
-                await persist({
-                  ...data,
-                  settings: {
-                    ...data.settings,
-                    routingMode: "processes",
-                    systemProxy: false,
-                  },
-                });
-              }}
-              restart={restartElevated}
-            />
-          )}
-          {page === "settings" && (
-            <SettingsPanel
-              settings={data.settings}
-              disabled={locked}
-              save={async (settings) => {
-                await persist({ ...data, settings });
-                setNotice({ text: "Preferences saved." });
-                record("Connection preferences updated.");
-              }}
-              engineVersion={status.engineVersion}
-              engineAvailable={status.engineAvailable}
-            />
-          )}
-          {page === "activity" && (
-            <section className="panel activity-panel">
-              <div className="section-heading">
-                <div>
+                  ) : (
+                    <p className="panel-footnote">No processes selected.</p>
+                  )}
+                  <p className="panel-footnote">
+                    {activeMode === "processes"
+                      ? "Other processes go direct. Windows DNS is unchanged."
+                      : modeLabel(activeMode)}
+                  </p>
+                </section>
+              </>
+            )}
+            {page === "processes" && (
+              <ProcessRouting
+                targets={data.settings.selectedProcesses}
+                mode={data.settings.routingMode}
+                disabled={locked}
+                isElevated={status.isElevated}
+                inheritedProcesses={status.inheritedProcesses}
+                save={async (targets) =>
+                  persist({
+                    ...data,
+                    settings: { ...data.settings, selectedProcesses: targets },
+                  })
+                }
+                enable={async () =>
+                  persist({
+                    ...data,
+                    settings: {
+                      ...data.settings,
+                      routingMode: "processes",
+                      systemProxy: false,
+                    },
+                  })
+                }
+                restart={restartElevated}
+              />
+            )}
+            {page === "settings" && (
+              <SettingsPanel
+                settings={data.settings}
+                disabled={locked}
+                save={async (settings) => {
+                  await persist({ ...data, settings });
+                  setNotice({ text: "Settings saved." });
+                  record("Connection settings updated.");
+                }}
+                engineVersion={status.engineVersion}
+                engineAvailable={status.engineAvailable}
+              />
+            )}
+            {page === "activity" && (
+              <section className="panel activity-panel">
+                <div className="section-heading">
                   <h2>Session activity</h2>
-                  <p>
-                    Newest first. Recent history stays in memory until cleared
-                    or the app closes.
-                  </p>
-                </div>
-                <button
-                  className="button secondary small-button"
-                  disabled={busy || !allLogs.length}
-                  onClick={async () => {
-                    try {
-                      logsEpoch.current += 1;
-                      await backend.clearLogs();
-                      logsEpoch.current += 1;
-                      setLogs([]);
-                      setAppLogs([]);
-                    } catch (err) {
-                      setNotice({ text: errorMessage(err), error: true });
-                    }
-                  }}
-                >
-                  <Trash2 size={15} /> Clear
-                </button>
-              </div>
-              <div className="activity-controls">
-                <div>
-                  <h3>Usage logging</h3>
-                  <p id="usage-logging-description">
-                    Record connections only for apps added in Processes,
-                    including automatically included children. Entries show
-                    destination addresses and ports, and Proxy or Direct
-                    routing. No page URLs, traffic contents, or credentials are
-                    recorded. Very short connections and unidentified apps are
-                    omitted.
-                  </p>
-                  <p>
-                    {isDesktop
-                      ? data.settings.usageLogging
-                        ? "Logging is on. Existing connections may appear when logging starts."
-                        : "Logging is off. Existing history is kept; Clear removes it."
-                      : "Browser preview only. Usage is recorded in the Windows app."}
-                  </p>
-                </div>
-                <div className="activity-toggle">
-                  <span>{data.settings.usageLogging ? "On" : "Off"}</span>
                   <button
-                    type="button"
-                    role="switch"
-                    aria-label="Usage logging"
-                    aria-checked={data.settings.usageLogging}
-                    aria-describedby="usage-logging-description"
-                    className={`toggle ${data.settings.usageLogging ? "on" : ""}`}
-                    disabled={busy || !loaded || !!loadError}
+                    className="button secondary"
+                    disabled={busy || !allLogs.length}
                     onClick={async () => {
                       try {
-                        await persist({
-                          ...data,
-                          settings: {
-                            ...data.settings,
-                            usageLogging: !data.settings.usageLogging,
-                          },
-                        });
+                        logsEpoch.current += 1;
+                        await backend.clearLogs();
+                        logsEpoch.current += 1;
+                        setLogs([]);
+                        setAppLogs([]);
                       } catch (err) {
                         setNotice({ text: errorMessage(err), error: true });
                       }
                     }}
                   >
-                    <span />
+                    <Trash2 size={14} />
+                    Clear
                   </button>
                 </div>
-              </div>
-              {allLogs.length ? (
-                <div className="log-list">
-                  {allLogs.map((log, index) => (
-                    <div
-                      className="log-entry"
-                      key={`${log.timestamp}-${index}`}
-                    >
-                      <span className={`log-level ${log.level}`}>
-                        {log.level}
-                      </span>
-                      <time>
-                        {new Date(log.timestamp).toLocaleTimeString()}
-                      </time>
-                      <span>{log.message}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-profiles">
-                  <span className="empty-activity">
-                    <Activity size={31} />
-                  </span>
-                  <h3>A quiet network moment.</h3>
-                  <p>
-                    Connection events appear here as you use ProxyKing. Turn on
-                    usage logging to see connections for apps added in
-                    Processes.
+                <div className="activity-controls">
+                  <label className="logging-checkbox">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Usage logging"
+                      checked={data.settings.usageLogging}
+                      disabled={busy || !loaded || !!loadError}
+                      onChange={async (event) => {
+                        const enabled = event.target.checked;
+                        try {
+                          await persist({
+                            ...data,
+                            settings: {
+                              ...data.settings,
+                              usageLogging: enabled,
+                            },
+                          });
+                        } catch (err) {
+                          setNotice({ text: errorMessage(err), error: true });
+                        }
+                      }}
+                    />
+                    Usage logging
+                  </label>
+                  <p role="status">
+                    {!isDesktop
+                      ? "Available in the Windows app."
+                      : !data.settings.usageLogging
+                        ? "Logging off."
+                        : !connected
+                          ? "Disconnected. Connect to record."
+                          : !data.settings.selectedProcesses.length
+                            ? "No processes selected."
+                            : "Recording selected processes and included children."}
                   </p>
                 </div>
-              )}
-            </section>
-          )}
-          <footer className="footer">
-            <span>
-              <span className="mini-dot available" /> Built for a more open
-              connection.
-            </span>
-            <button onClick={() => setPage("settings")}>
-              ProxyKing for Windows <ArrowUpRight size={13} />
-            </button>
-          </footer>
+                {allLogs.length ? (
+                  <div className="log-list">
+                    {allLogs.map((log, index) => (
+                      <div
+                        className="log-entry"
+                        key={`${log.timestamp}-${index}`}
+                      >
+                        <span className={`log-level ${log.level}`}>
+                          {log.level}
+                        </span>
+                        <time>
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </time>
+                        <span>{log.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-profiles">No activity.</p>
+                )}
+              </section>
+            )}
+          </div>
         </div>
       </main>
+      <footer className="statusbar">
+        <span aria-live="polite">
+          {connected
+            ? "Proxy running"
+            : status.state === "connecting"
+              ? "Connecting"
+              : "Disconnected"}
+        </span>
+        <span>
+          {modeLabel(activeMode)} · 127.0.0.1:
+          {connected ? status.localPort : data.settings.localPort}
+        </span>
+        <span>v{appVersion}</span>
+      </footer>
       {notice && (
         <div
           className={`toast ${notice.error ? "error-toast" : ""}`}

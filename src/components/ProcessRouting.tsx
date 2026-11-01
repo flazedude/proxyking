@@ -179,8 +179,8 @@ function ProcessPicker({
         )}
       </div>
       <p className="muted small">
-        New selections include child processes by default. You can turn this off
-        for each executable after saving. Protected processes may not appear.
+        Children are included by default. Protected processes may be
+        unavailable.
       </p>
       <div className="dialog-actions">
         <span className="selection-total">
@@ -255,13 +255,13 @@ export function ProcessRouting({
         <div>
           <h2>
             {mode === "processes"
-              ? "Only selected processes use the proxy"
-              : "Selected-process routing is off"}
+              ? "Selected-process routing"
+              : "Selected-process routing off"}
           </h2>
           <p>
             {mode === "processes"
-              ? "Unmatched processes go direct. Windows system proxy settings stay unchanged."
-              : "Enable this mode to proxy your selected executable files and send everything else direct."}
+              ? "Other processes go direct."
+              : "Enable to proxy the selected processes."}
           </p>
         </div>
         {mode !== "processes" && (
@@ -279,13 +279,8 @@ export function ProcessRouting({
         <div className="elevation-banner">
           <ShieldCheck size={21} />
           <div>
-            <strong>
-              Administrator access is needed to start this tunnel.
-            </strong>
-            <p>
-              Windows will ask for permission when ProxyKing restarts. Your
-              saved profiles and process selection are kept.
-            </p>
+            <strong>Administrator access required.</strong>
+            <p>Approve the Windows prompt, then connect.</p>
           </div>
           <button
             className="button secondary"
@@ -304,7 +299,7 @@ export function ProcessRouting({
       <section className="panel selected-processes">
         <div className="section-heading">
           <div className="section-title">
-            <h2>Selected executables</h2>
+            <h2>Selected processes</h2>
             <span className="count">{targets.length}</span>
           </div>
           <button
@@ -344,11 +339,7 @@ export function ProcessRouting({
                         );
                       }}
                     />
-                    Include child processes{" "}
-                    <span>
-                      Games and helpers launched by this app, including
-                      grandchildren
-                    </span>
+                    Include child processes
                   </label>
                 </div>
                 <span className="target-route">
@@ -377,26 +368,14 @@ export function ProcessRouting({
           </div>
         ) : (
           <div className="empty-profiles">
-            <div className="empty-art">
-              <span />
-              <div>
-                <ListFilter size={29} />
-              </div>
-              <span />
-            </div>
-            <h3>Choose which apps take the proxy.</h3>
-            <p>
-              Open the app you want to tunnel, then add its process.
-              <br />
-              Selected-process mode requires at least one executable before you
-              connect.
-            </p>
+            <h3>No processes selected.</h3>
+            <p>Start an app, then add its process.</p>
             <button
               className="text-button"
               disabled={disabled || !isDesktop}
               onClick={() => setShowPicker(true)}
             >
-              Choose running processes <ArrowRight size={16} />
+              Add processes <ArrowRight size={16} />
             </button>
           </div>
         )}
@@ -413,10 +392,7 @@ export function ProcessRouting({
                 Automatically included children{" "}
                 <span className="count">{inheritedProcesses.length}</span>
               </h2>
-              <p>
-                Detected while connected; executable paths apply to all their
-                instances.
-              </p>
+              <p>Detected while connected.</p>
             </div>
           </div>
           {inheritedProcesses.length ? (
@@ -440,45 +416,17 @@ export function ProcessRouting({
               ))}
             </div>
           ) : (
-            <p className="child-discovery-note">
-              Connect, then launch a game or helper from your selected app.
-              Existing descendants are also detected at connection time.
-            </p>
+            <p className="child-discovery-note">No child processes detected.</p>
           )}
           <p className="child-discovery-note">
-            New children can take a few seconds to be discovered and applied.
-            Initial connections can go direct. A very short-lived launcher or a
-            separate Windows service may break the parent chain; add that game
-            or helper explicitly. Child rules clear when their processes exit or
-            you disconnect.
+            Discovery can be delayed; initial connections may go direct. Add
+            service-launched apps explicitly.
           </p>
         </section>
       )}
-      <div className="routing-facts">
-        <div>
-          <h3>Selected apps → proxy</h3>
-          <p>
-            All instances of a selected executable use the profile you choose in
-            Overview. Reconnect after changing selection, then start new
-            connections in the target app; existing sockets are not migrated.
-            Enable child inclusion for launchers such as Steam or Battle.net.
-          </p>
-        </div>
-        <div>
-          <h3>Other apps → direct</h3>
-          <p>
-            The Windows tunnel handles traffic, then sends unmatched processes
-            directly through your normal network.
-          </p>
-        </div>
-        <div>
-          <h3>DNS stays with Windows</h3>
-          <p>
-            This mode does not isolate DNS per app. Processes that cannot be
-            identified are also routed direct.
-          </p>
-        </div>
-      </div>
+      <p className="panel-footnote">
+        Windows DNS is unchanged. Unidentified processes go direct.
+      </p>
       {showPicker && (
         <ProcessPicker
           targets={targets}
