@@ -4,6 +4,10 @@ ProxyKing starts as a Windows desktop client for user-supplied Shadowsocks, VLES
 
 This document records the design and platform roadmap. Later-platform work described here is not implemented support.
 
+Version 0.4.0 promotes the dark game library to the installed app. `AcceleratorApp.tsx` uses the existing native server storage, lifecycle, selected-path rules, activity and updater. `games.rs` reads bounded launcher metadata and checks executable candidates without launching games; `game_icons.rs` extracts local icons through Windows shell/GDI. Artwork URLs are derived from numeric Steam app IDs or a fixed known-title catalog; local brand assets have pinned provenance. Browser calls return an empty catalog without native discovery. The standalone concept remains a separate browser entry.
+
+The engine remains sing-box 1.14.2. A separate Toolhelp image-name snapshot blocks non-local connection attempts while known Clash GUIs/engines are present, even when full process paths cannot be queried. A two-second supervision check disconnects only the owned engine if Clash appears or the check fails; normal restoration and update cleanup remain mandatory. Local mode is exempt because it does not add a TUN or system proxy, but it may follow another tunnel's underlying route. This conservative guard is not verification of simultaneous Clash TUN operation. See [GAME_ACCELERATOR.md](GAME_ACCELERATOR.md) for the open-source backend roadmap.
+
 ## Windows first release
 
 Version 0.3.4 uses an XP-style split view: profiles on the left, Connection/Processes/Activity/Settings tabs on the right, and a shared connection/update toolbar. Custom Tauri title-bar controls use narrowly scoped window permissions; closing still goes through the existing native exit/engine cleanup path. Browser preview window and networking controls remain inert. Interface text uses short functional labels without slogans.

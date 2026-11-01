@@ -20,6 +20,10 @@ Running the engine as a separate process is an architectural choice, not an auto
 
 ## Application dependencies
 
+The game accelerator uses `yaml` 2.9.1, copyright Eemeli Aro, under the ISC license. Its exact license is included in the pinned npm package at `node_modules/yaml/LICENSE`, the installer's `resources/yaml-LICENSE.txt`, and the [upstream repository](https://github.com/eemeli/yaml/blob/v2.9.1/LICENSE). The separate concept build also copies the license to `dist-accelerator/yaml-LICENSE.txt`.
+
+Bundled brand glyphs come from [Simple Icons](https://github.com/simple-icons/simple-icons) revision `90646e4bf7f3b89df6c37e65baf3e7bc759a517c`, with CC0 text and source recorded in `public/brands/LICENSE.txt` and `SOURCE.txt` and retained in the installed resources. Game names/logos and publisher/store posters identify their respective games and platforms; they do not imply endorsement. Posters are loaded at runtime from store/publisher image hosts rather than included in release assets. Local executable icons are read from the user's installations. Routing candidates in the design review are research only; their code and binaries are not included.
+
 Tauri, React, TypeScript, Vite, Rust crates, UI assets, and their transitive dependencies each retain their own licenses. Record exact versions from the generated lockfiles and include the notices required by the components actually shipped. Development tooling that is not part of the distributed artifact should be identified separately from runtime components.
 
 For every public release, archive the engine artifact identity and checksum, source/build provenance, complete license texts, and a generated dependency inventory alongside the installer. Update this record when the engine or integration changes.

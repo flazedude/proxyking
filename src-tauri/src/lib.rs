@@ -1,5 +1,7 @@
 mod config;
 mod descendants;
+mod game_icons;
+mod games;
 mod models;
 mod platform;
 mod proxy;
@@ -14,7 +16,7 @@ mod usage;
 // Common Controls activation manifest, which Tauri embeds only in app binaries.
 #[cfg(not(test))]
 mod application {
-    use super::{config, models, platform, runtime, updates};
+    use super::{config, games, models, platform, runtime, updates};
     use models::{AppSettings, LogEntry, Profile, RunningProcess, RuntimeStatus, SavedState};
     use runtime::Service;
     use std::{
@@ -109,6 +111,20 @@ mod application {
     }
 
     #[tauri::command]
+    async fn routing_conflict() -> Result<bool, String> {
+        tauri::async_runtime::spawn_blocking(platform::routing_conflict)
+            .await
+            .map_err(|_| "Could not check other proxy applications.")?
+    }
+
+    #[tauri::command]
+    async fn scan_games() -> Result<Vec<games::InstalledGame>, String> {
+        tauri::async_runtime::spawn_blocking(games::scan)
+            .await
+            .map_err(|_| "The game discovery task failed.")?
+    }
+
+    #[tauri::command]
     async fn list_processes(
         service: State<'_, Arc<Service>>,
     ) -> Result<Vec<RunningProcess>, String> {
@@ -182,6 +198,8 @@ mod application {
                 get_logs,
                 clear_logs,
                 list_processes,
+                scan_games,
+                routing_conflict,
                 restart_elevated,
                 updates::native::check_updates,
                 updates::native::download_update,

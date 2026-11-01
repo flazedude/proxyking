@@ -10,6 +10,13 @@ pub struct ProcessIdentity {
     pub path: String,
 }
 
+pub fn clash_process_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "clash-verge.exe" | "verge-mihomo.exe" | "mihomo.exe" | "clash.exe" | "clash-meta.exe"
+    )
+}
+
 pub fn same_executable_path(first: &Path, second: &Path) -> bool {
     fn normalized(path: &Path) -> String {
         let resolved = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_owned());
@@ -29,8 +36,8 @@ mod windows {
     };
     use windows_sys::Win32::{
         Foundation::{
-            CloseHandle, GetLastError, ERROR_INVALID_PARAMETER, FILETIME, HANDLE,
-            INVALID_HANDLE_VALUE, WAIT_OBJECT_0,
+            CloseHandle, GetLastError, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, FILETIME,
+            HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0,
         },
         Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY},
         System::{
@@ -45,6 +52,35 @@ mod windows {
             },
         },
     };
+
+    pub fn routing_conflict() -> Result<bool, String> {
+        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+        if snapshot == INVALID_HANDLE_VALUE {
+            return Err("Windows could not check other proxy applications.".into());
+        }
+        let snapshot = OwnedHandle(snapshot);
+        let mut entry: PROCESSENTRY32W = unsafe { zeroed() };
+        entry.dwSize = size_of::<PROCESSENTRY32W>() as u32;
+        let mut more = unsafe { Process32FirstW(snapshot.0, &mut entry) } != 0;
+        if !more {
+            return Err("Windows could not inspect the process snapshot.".into());
+        }
+        while more {
+            let end = entry
+                .szExeFile
+                .iter()
+                .position(|value| *value == 0)
+                .unwrap_or(entry.szExeFile.len());
+            if clash_process_name(&String::from_utf16_lossy(&entry.szExeFile[..end])) {
+                return Ok(true);
+            }
+            more = unsafe { Process32NextW(snapshot.0, &mut entry) } != 0;
+        }
+        if unsafe { GetLastError() } != ERROR_NO_MORE_FILES {
+            return Err("Windows could not finish checking other proxy applications.".into());
+        }
+        Ok(false)
+    }
 
     struct OwnedHandle(HANDLE);
     impl Drop for OwnedHandle {
@@ -282,7 +318,12 @@ mod windows {
 #[cfg(all(windows, not(test)))]
 pub use windows::launch_elevated;
 #[cfg(windows)]
-pub use windows::{is_elevated, list_processes, process_snapshot};
+pub use windows::{is_elevated, list_processes, process_snapshot, routing_conflict};
+
+#[cfg(not(windows))]
+pub fn routing_conflict() -> Result<bool, String> {
+    Err("Proxy coexistence checks are available on Windows only.".into())
+}
 
 #[cfg(not(windows))]
 pub fn process_snapshot() -> Result<Vec<ProcessIdentity>, String> {
@@ -328,6 +369,27 @@ pub fn prepare_relaunch() -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn detects_clash_carriers_by_exact_case_insensitive_image_name() {
+        for name in [
+            "Clash-Verge.exe",
+            "VERGE-MIHOMO.EXE",
+            "mihomo.exe",
+            "clash.exe",
+            "clash-meta.exe",
+        ] {
+            assert!(clash_process_name(name));
+        }
+        for name in [
+            "proxyking.exe",
+            "sing-box.exe",
+            "my-clash.exe",
+            "clash.exe.bak",
+            "clash-core-service.exe",
+        ] {
+            assert!(!clash_process_name(name));
+        }
+    }
+    #[test]
     fn process_listing_reads_real_paths_and_can_exclude_this_application() {
         let executable = std::env::current_exe().unwrap();
         let processes = list_processes(&[]).unwrap();
@@ -340,5 +402,6 @@ mod tests {
             .iter()
             .any(|process| process.pid == std::process::id()));
         let _elevated = is_elevated(); // Read-only token query; never prompts for elevation.
+        let _conflict = routing_conflict().unwrap(); // Includes protected process names without opening them.
     }
 }

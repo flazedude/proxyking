@@ -21,10 +21,24 @@ describe("usage logging preference", () => {
     await backend.save(state);
     expect((await backend.load()).settings.usageLogging).toBe(true);
     expect(await backend.logs()).toEqual([]);
+    expect(await backend.games()).toEqual([]);
+    expect(await backend.routingConflict()).toBe(false);
     expect(native.invoke).not.toHaveBeenCalled();
     vi.resetModules();
     const fresh = await import("./backend");
     expect((await fresh.backend.load()).settings.usageLogging).toBe(false);
+  });
+
+  it("requests native discovery and coexistence checks only in the desktop app", async () => {
+    native.desktop = true;
+    const { backend } = await import("./backend");
+    native.invoke.mockResolvedValueOnce([]).mockResolvedValueOnce(true);
+    expect(await backend.games()).toEqual([]);
+    expect(await backend.routingConflict()).toBe(true);
+    expect(native.invoke.mock.calls).toEqual([
+      ["scan_games"],
+      ["routing_conflict"],
+    ]);
   });
 
   it("migrates desktop settings with usage logging off and preserves an explicit preference", async () => {
