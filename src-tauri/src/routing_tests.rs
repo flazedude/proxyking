@@ -271,6 +271,7 @@ fn run_observed_client(
     controller: &crate::usage::Controller,
 ) {
     let mut usage = crate::usage::Usage::default();
+    usage.set_selected([executable.to_str().unwrap()].into_iter());
     usage.set_enabled(true);
     usage.attach(Some(controller.clone()));
     let app = executable

@@ -1264,10 +1264,12 @@ export default function App() {
                 <div>
                   <h3>Usage logging</h3>
                   <p id="usage-logging-description">
-                    Record observed app connections, destination addresses and
-                    ports, and Proxy or Direct routing. No page URLs, traffic
-                    contents, or credentials are recorded. Very short
-                    connections may be missed; app names may be unavailable.
+                    Record connections only for apps added in Processes,
+                    including automatically included children. Entries show
+                    destination addresses and ports, and Proxy or Direct
+                    routing. No page URLs, traffic contents, or credentials are
+                    recorded. Very short connections and unidentified apps are
+                    omitted.
                   </p>
                   <p>
                     {isDesktop
@@ -1330,7 +1332,8 @@ export default function App() {
                   <h3>A quiet network moment.</h3>
                   <p>
                     Connection events appear here as you use ProxyKing. Turn on
-                    usage logging to also see observed app connections.
+                    usage logging to see connections for apps added in
+                    Processes.
                   </p>
                 </div>
               )}

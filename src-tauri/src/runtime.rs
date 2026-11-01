@@ -69,6 +69,7 @@ impl Runtime {
         self.job = None;
         self.child_rules = None;
         self.usage.attach(None);
+        self.usage.set_children(std::iter::empty());
         self.status.inherited_processes.clear();
         self.status.connected_at = None;
         self.status.profile_id = None;
@@ -99,12 +100,19 @@ impl Service {
                 })
         });
         let mut usage = Usage::default();
-        usage.set_enabled(
-            storage::read_encrypted::<SavedState>(&data_dir.join("profiles.dat"))
-                .ok()
-                .flatten()
-                .is_some_and(|state| state.settings.usage_logging),
-        );
+        if let Some(state) = storage::read_encrypted::<SavedState>(&data_dir.join("profiles.dat"))
+            .ok()
+            .flatten()
+        {
+            usage.set_enabled(state.settings.usage_logging);
+            usage.set_selected(
+                state
+                    .settings
+                    .selected_processes
+                    .iter()
+                    .map(|process| process.path.as_str()),
+            );
+        }
         let mut runtime = Runtime {
             status: RuntimeStatus {
                 engine_available: engine.is_some(),
@@ -176,6 +184,9 @@ impl Service {
                     });
                     match refresh {
                         Ok(Some(children)) => {
+                            runtime
+                                .usage
+                                .set_children(children.iter().map(|process| process.path.as_str()));
                             runtime.status.inherited_processes = children;
                         }
                         Ok(None) => {}
@@ -244,6 +255,13 @@ impl Service {
             .map_err(|_| "Connection state is unavailable.")?;
         storage::write_encrypted(&self.data_dir.join("profiles.dat"), &state)?;
         runtime.usage.set_enabled(state.settings.usage_logging);
+        runtime.usage.set_selected(
+            state
+                .settings
+                .selected_processes
+                .iter()
+                .map(|process| process.path.as_str()),
+        );
         Ok(())
     }
 
@@ -460,6 +478,16 @@ impl Service {
             return Err(error);
         }
         runtime.status.state = "connected".into();
+        runtime.usage.set_selected(
+            settings
+                .selected_processes
+                .iter()
+                .map(|process| process.path.as_str()),
+        );
+        let children = runtime.status.inherited_processes.clone();
+        runtime
+            .usage
+            .set_children(children.iter().map(|process| process.path.as_str()));
         runtime.usage.attach(Some(controller));
         runtime.status.connected_at = Some(now_ms());
         if process_mode {
@@ -743,7 +771,15 @@ mod tests {
             system_proxy: false,
             local_port: port,
             routing_mode: Some("local".into()),
-            selected_processes: Vec::new(),
+            selected_processes: vec![crate::models::SelectedProcess {
+                name: "Test executable".into(),
+                path: std::env::current_exe()
+                    .unwrap()
+                    .to_string_lossy()
+                    .trim_start_matches(r"\\?\")
+                    .into(),
+                include_children: false,
+            }],
             usage_logging: true,
         };
         let saved = SavedState {
@@ -845,6 +881,22 @@ mod tests {
         assert!(usage.message.contains("TCP · Proxy"));
         assert!(!usage.message.contains("test-only-password"));
         assert!(controller.unauthorized_for_test().is_err());
+        let mut no_selection = saved.clone();
+        no_selection.settings.selected_processes.clear();
+        service.save(&no_selection).unwrap();
+        service.clear_logs().unwrap();
+        let (empty_generation, _) = service.inner.lock().unwrap().usage.request().unwrap();
+        service
+            .inner
+            .lock()
+            .unwrap()
+            .usage
+            .accept(empty_generation, controller.snapshot());
+        assert!(
+            service.logs().unwrap().is_empty(),
+            "unselected traffic is excluded even in local mode"
+        );
+        service.save(&saved).unwrap();
         service.clear_logs().unwrap();
         service
             .inner

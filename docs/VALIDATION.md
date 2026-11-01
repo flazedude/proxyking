@@ -1,5 +1,15 @@
 # Windows preview validation
 
+## Version 0.3.3 — selected-process activity
+
+Checked on Windows x64 on 2026-11-01:
+
+- Frontend: 177 tests passed; production TypeScript/Vite build, version consistency, and formatting passed. Native: 27 tests passed with one separately invoked routing fixture; Rust formatting and strict Clippy passed.
+- Usage collection now accepts only full paths selected in Processes and currently inherited launcher children, in every routing mode. Regression tests cover unrelated same-name executables, missing attribution, empty selections, Windows case/separator and extended/UNC paths, appended account labels, and stale samples after scope changes.
+- The real-engine encrypted loopback test verifies selected traffic remains visible, then removes the selection while connected and verifies that traffic is excluded in local mode. Existing routing tests continue checking real executable attribution and both Proxy and Direct labels.
+
+These checks use loopback only and do not alter Windows proxy, routing, DNS, or firewall settings. Live elevated TUN capture and external provider traffic remain unverified. Very short or unidentified connections are omitted. Existing session status/error events remain visible.
+
 ## Version 0.3.2 — usage activity and LAN updates
 
 Checked on Windows x64 on 2026-11-01:

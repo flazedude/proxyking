@@ -1,5 +1,8 @@
 //! Read structured connection metadata; never retain raw engine output or API bodies.
-use crate::models::{now_ms, LogEntry};
+use crate::{
+    config,
+    models::{now_ms, LogEntry},
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
@@ -10,6 +13,27 @@ use std::{
 };
 
 const MAX_BODY: u64 = 4 * 1024 * 1024;
+
+fn path_key(path: &str) -> String {
+    let path = config::normalize_process_path(path).to_lowercase();
+    if let Some(unc) = path.strip_prefix(r"\\?\unc\") {
+        format!(r"\\{unc}")
+    } else {
+        path.trim_start_matches(r"\\?\").to_owned()
+    }
+}
+
+fn connection_path_key(path: &str) -> String {
+    let path = path_key(path);
+    // Clash metadata can append an account label to the executable path.
+    if let Some(end) = path.rfind(".exe") {
+        let suffix = &path[end + 4..];
+        if suffix.starts_with(" (") && suffix.ends_with(')') && !suffix.contains('\\') {
+            return path[..end + 4].to_owned();
+        }
+    }
+    path
+}
 
 #[derive(Clone)]
 pub struct Controller {
@@ -204,9 +228,29 @@ pub struct Usage {
     seen: HashSet<String>,
     pub logs: VecDeque<LogEntry>,
     failed: bool,
+    selected: HashSet<String>,
+    children: HashSet<String>,
 }
 
 impl Usage {
+    pub fn set_selected<'a>(&mut self, paths: impl Iterator<Item = &'a str>) {
+        let selected = paths.map(path_key).collect();
+        if self.selected != selected {
+            self.selected = selected;
+            self.generation += 1;
+            self.seen.clear();
+        }
+    }
+
+    pub fn set_children<'a>(&mut self, paths: impl Iterator<Item = &'a str>) {
+        let children = paths.map(path_key).collect();
+        if self.children != children {
+            self.children = children;
+            self.generation += 1;
+            // Preserve IDs already logged while allowing newly included connections.
+        }
+    }
+
     pub fn set_enabled(&mut self, enabled: bool) {
         if self.enabled != enabled {
             self.enabled = enabled;
@@ -248,6 +292,10 @@ impl Usage {
                 self.failed = false;
                 let mut active = HashSet::new();
                 for connection in snapshot.connections.into_iter().take(10000) {
+                    let path = connection_path_key(&connection.metadata.process_path);
+                    if !self.selected.contains(&path) && !self.children.contains(&path) {
+                        continue;
+                    }
                     if connection.id.len() > 128 || !active.insert(connection.id.clone()) {
                         continue;
                     }
@@ -294,6 +342,7 @@ mod tests {
 
     fn active() -> Usage {
         let mut usage = Usage::default();
+        usage.set_selected([r"C:\Users\private-account\Chrome\chrome.exe"].into_iter());
         usage.set_enabled(true);
         usage.attach(Some(Controller {
             address: "127.0.0.1:1".into(),
@@ -301,6 +350,92 @@ mod tests {
             client: monitor_client().unwrap(),
         }));
         usage
+    }
+
+    #[test]
+    fn records_only_selected_paths_and_current_children() {
+        let mut usage = active();
+        let mut selected = connection("selected", "direct");
+        selected.metadata.process_path =
+            r"\\?\C:/Users/private-account/Chrome/CHROME.EXE (account)".into();
+        let mut unrelated = connection("unrelated", "proxy");
+        unrelated.metadata.process_path = r"C:\Other\chrome.exe".into();
+        let mut unknown = connection("unknown", "direct");
+        unknown.metadata.process_path.clear();
+        let mut child = connection("child", "proxy");
+        child.metadata.process_path = r"C:\Game\helper.exe".into();
+        let generation = usage.request().unwrap().0;
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![selected, unrelated, unknown, child],
+            }),
+        );
+        assert_eq!(usage.logs.len(), 1);
+        assert!(usage.logs[0].message.contains("Direct"));
+
+        usage.set_children([r"C:\Game\helper.exe"].into_iter());
+        let mut child = connection("child", "proxy");
+        child.metadata.process_path = r"C:\Game\helper.exe".into();
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![child],
+            }),
+        );
+        assert_eq!(usage.logs.len(), 1, "scope changes reject stale samples");
+        let generation = usage.request().unwrap().0;
+        let mut child = connection("child", "proxy");
+        child.metadata.process_path = r"C:\Game\helper.exe".into();
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![child],
+            }),
+        );
+        assert_eq!(
+            usage.logs.len(),
+            2,
+            "newly discovered active children are included"
+        );
+        assert!(usage.logs[1].message.contains("helper.exe"));
+
+        usage.set_children(std::iter::empty());
+        usage.set_selected(std::iter::empty());
+        let generation = usage.request().unwrap().0;
+        let mut child = connection("new-child", "proxy");
+        child.metadata.process_path = r"C:\Game\helper.exe".into();
+        usage.accept(
+            generation,
+            Ok(Snapshot {
+                connections: vec![connection("new-selected", "proxy"), child],
+            }),
+        );
+        assert_eq!(
+            usage.logs.len(),
+            2,
+            "an empty selection never logs all traffic"
+        );
+    }
+
+    #[test]
+    fn path_matching_preserves_executable_boundaries_and_unc_paths() {
+        assert_eq!(
+            path_key(r"\\?\UNC\Server\Share\App.exe"),
+            path_key(r"\\server\share\app.exe")
+        );
+        assert_eq!(
+            connection_path_key(r"C:\App.exe\Game.exe (account)"),
+            path_key(r"C:\App.exe\Game.exe")
+        );
+        for path in [
+            r"C:\App.exe.backup",
+            r"C:\App.exe (copy)\Other.exe",
+            "App.exe",
+            "",
+        ] {
+            assert_ne!(connection_path_key(path), path_key(r"C:\App.exe"));
+        }
     }
 
     #[test]
